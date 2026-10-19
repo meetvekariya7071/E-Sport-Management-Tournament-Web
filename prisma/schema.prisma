@@ -1,0 +1,225 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// =========================================================================
+// USER & ROLE-BASED ACCESS CONTROL
+// Roles: ADMIN | ORGANIZER | PLAYER | REFEREE
+// =========================================================================
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  username     String    @unique
+  passwordHash String    @map("password_hash")
+  role         String    @default("PLAYER") // "ADMIN" | "ORGANIZER" | "PLAYER" | "REFEREE"
+  isBanned     Boolean   @default(false) @map("is_banned")
+  banReason    String?   @map("ban_reason")
+  bio          String?
+  avatarUrl    String?   @map("avatar_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  createdGames         Game[]                  @relation("AdminCreatedGames")
+  organizedTournaments Tournament[]            @relation("OrganizerTournaments")
+  captainTeams         Team[]                  @relation("TeamCaptain")
+  teamMemberships      TeamMember[]
+  participations       TournamentParticipant[]
+  adjudicatedMatches   Match[]                 @relation("RefereeMatches")
+
+  @@index([role, isBanned])
+  @@map("users")
+}
+
+// =========================================================================
+// GAME CATALOG (Admin-Only Creation & Oversight)
+// =========================================================================
+model Game {
+  id          String        @id @default(uuid())
+  title       String        @unique
+  slug        String        @unique
+  genre       String
+  platform    String        @default("PC") // PC, Console, Mobile, Cross-Platform
+  coverImage  String?       @map("cover_image")
+  isTeamBased Boolean       @default(false) @map("is_team_based")
+  minTeamSize Int           @default(1) @map("min_team_size")
+  maxTeamSize Int           @default(1) @map("max_team_size")
+  metadata    String?       @default("{}")
+  createdById String?       @map("created_by_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  createdBy   User?         @relation("AdminCreatedGames", fields: [createdById], references: [id], onDelete: SetNull)
+  tournaments Tournament[]
+
+  @@map("games")
+}
+
+// =========================================================================
+// TOURNAMENT AGGREGATE (Admin & Organizer Scoped)
+// Formats: "SOLO" | "DUO" | "SQUAD"
+// Status: "DRAFT" | "REGISTRATION_OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
+// =========================================================================
+model Tournament {
+  id              String            @id @default(uuid())
+  title           String
+  slug            String            @unique
+  description     String?
+  bannerImage     String?           @map("banner_image")
+  prizePool       String?           @map("prize_pool")
+  structure       String            @default("SINGLE_ELIMINATION") // "SINGLE_ELIMINATION" | "ROUND_ROBIN" | "LEADERBOARD_POINTS"
+  gameId          String            @map("game_id")
+  organizerId     String            @map("organizer_id")
+  format          String            @default("SOLO") // "SOLO" | "DUO" | "SQUAD"
+  status          String            @default("DRAFT") // "DRAFT" | "REGISTRATION_OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
+  maxParticipants Int               @map("max_participants")
+  currentCount    Int               @default(0) @map("current_count")
+  rules           String?           @default("{}")
+  startDate       DateTime          @map("start_date")
+  endDate         DateTime?         @map("end_date")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  // Scoped Relations
+  game            Game                   @relation(fields: [gameId], references: [id], onDelete: Restrict)
+  organizer       User                   @relation("OrganizerTournaments", fields: [organizerId], references: [id], onDelete: Cascade)
+  teams           Team[]
+  participants    TournamentParticipant[]
+  rounds          Round[]
+  matches         Match[]
+
+  @@index([organizerId, status])
+  @@index([status, startDate])
+  @@index([gameId])
+  @@map("tournaments")
+}
+
+// =========================================================================
+// TEAMS (Strictly instantiated only for DUO and SQUAD tournaments)
+// Bypassed for SOLO tournaments.
+// =========================================================================
+model Team {
+  id           String                  @id @default(uuid())
+  tournamentId String                  @map("tournament_id")
+  name         String
+  tag          String?
+  inviteCode   String?                 @unique @map("invite_code")
+  captainId    String                  @map("captain_id")
+  createdAt    DateTime                @default(now()) @map("created_at")
+
+  tournament   Tournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  captain      User                    @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: Restrict)
+  members      TeamMember[]
+  participants TournamentParticipant[]
+
+  @@unique([tournamentId, name])
+  @@index([tournamentId])
+  @@index([inviteCode])
+  @@map("teams")
+}
+
+model TeamMember {
+  id        String   @id @default(uuid())
+  teamId    String   @map("team_id")
+  userId    String   @map("user_id")
+  role      String   @default("STARTER") // "CAPTAIN" | "STARTER" | "SUBSTITUTE"
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+// =========================================================================
+// TOURNAMENT PARTICIPANTS (Player registrations scoped to a tournament)
+// When format is SOLO: teamId MUST be null.
+// When format is DUO/SQUAD: teamId points to the Team record.
+// =========================================================================
+model TournamentParticipant {
+  id               String        @id @default(uuid())
+  tournamentId     String        @map("tournament_id")
+  userId           String        @map("user_id")
+  teamId           String?       @map("team_id")
+  inGameName       String?       @map("in_game_name")
+  status           String        @default("REGISTERED") // "REGISTERED" | "CHECKED_IN" | "DISQUALIFIED" | "ELIMINATED"
+  seed             Int?
+  disqualifiedBy   String?       @map("disqualified_by")
+  disqualifyReason String?       @map("disqualify_reason")
+  registeredAt     DateTime      @default(now()) @map("registered_at")
+
+  tournament       Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team             Team?         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  matchResults     MatchResult[]
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId, status])
+  @@index([userId])
+  @@map("tournament_participants")
+}
+
+// =========================================================================
+// ROUNDS, MATCHES & SCORES (Strictly scoped to tournament)
+// =========================================================================
+model Round {
+  id           String     @id @default(uuid())
+  tournamentId String     @map("tournament_id")
+  roundNumber  Int        @map("round_number")
+  name         String
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches      Match[]
+
+  @@unique([tournamentId, roundNumber])
+  @@map("rounds")
+}
+
+model Match {
+  id           String        @id @default(uuid())
+  tournamentId String        @map("tournament_id")
+  roundId      String        @map("round_id")
+  matchNumber  Int           @map("match_number")
+  refereeId    String?       @map("referee_id")
+  status       String        @default("PENDING") // "PENDING" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "DISPUTED"
+  scheduledAt  DateTime?     @map("scheduled_at")
+  completedAt  DateTime?     @map("completed_at")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  tournament   Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  round        Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  referee      User?         @relation("RefereeMatches", fields: [refereeId], references: [id], onDelete: SetNull)
+  results      MatchResult[]
+
+  @@unique([roundId, matchNumber])
+  @@index([tournamentId, roundId])
+  @@index([refereeId, status])
+  @@map("matches")
+}
+
+model MatchResult {
+  id            String                @id @default(uuid())
+  matchId       String                @map("match_id")
+  participantId String                @map("participant_id")
+  score         Int                   @default(0)
+  kills         Int?                  @default(0)
+  placement     Int?
+  isWinner      Boolean               @default(false) @map("is_winner")
+  metadata      String?               @default("{}")
+  submittedAt   DateTime              @default(now()) @map("submitted_at")
+
+  match         Match                 @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  participant   TournamentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, participantId])
+  @@index([participantId])
+  @@map("match_results")
+}

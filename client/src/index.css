@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #0a0d14;
+    color: #e2e8f0;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  h1, h2, h3, h4, .font-heading {
+    font-family: 'Chakra Petch', sans-serif;
+    letter-spacing: 0.025em;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0d14;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00f0ff;
+}
+
+/* Glassmorphism Panel */
+.gaming-glass {
+  background: rgba(22, 31, 51, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+}
+
+.gaming-card {
+  background: #161f33;
+  border: 1px solid #1e293b;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.gaming-card:hover {
+  border-color: rgba(0, 240, 255, 0.4);
+  box-shadow: 0 0 20px -3px rgba(0, 240, 255, 0.15);
+  transform: translateY(-2px);
+}
