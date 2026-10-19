@@ -15,6 +15,8 @@ import { OrganizerDatabaseViewer } from './pages/OrganizerDatabaseViewer';
 import { PlayerDashboard } from './pages/PlayerDashboard';
 import { TournamentDetailsPage } from './pages/TournamentDetailsPage';
 import { TournamentCatalogPage } from './pages/TournamentCatalogPage';
+import { TournamentLivePage } from './pages/TournamentLivePage';
+import { OrganizerScoringConsole } from './pages/OrganizerScoringConsole';
 
 export const App: React.FC = () => {
   return (
@@ -25,6 +27,7 @@ export const App: React.FC = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/tournaments" element={<TournamentCatalogPage />} />
           <Route path="/tournaments/:id" element={<TournamentDetailsPage />} />
+          <Route path="/tournaments/:id/live" element={<TournamentLivePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
         </Route>
@@ -60,6 +63,16 @@ export const App: React.FC = () => {
             element={
               <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}>
                 <OrganizerDatabaseViewer />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Real-Time Match Scoring & Bracket Console */}
+          <Route
+            path="/organizer/tournaments/:id/scoring"
+            element={
+              <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}>
+                <OrganizerScoringConsole />
               </ProtectedRoute>
             }
           />

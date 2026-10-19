@@ -1249,4 +1249,584 @@ export class TournamentService {
         : null
     }));
   }
+
+  /**
+   * Generates bracket structure and initial Round 1 matches.
+   * Supports Single Elimination seeding & Battle Royale points matrices.
+   */
+  static async generateBracket(tournamentId: string, actorId: string, isAdmin: boolean) {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        participants: {
+          include: {
+            user: { select: { id: true, username: true, email: true } },
+            team: { select: { id: true, name: true, tag: true } }
+          }
+        },
+        teams: {
+          include: {
+            members: { include: { user: { select: { id: true, username: true } } } },
+            captain: { select: { id: true, username: true } }
+          }
+        }
+      }
+    });
+
+    if (!tournament) {
+      throw new Error('NOT_FOUND: Tournament does not exist.');
+    }
+
+    if (!isAdmin && tournament.organizerId !== actorId) {
+      throw new Error('FORBIDDEN: You do not have permission to generate this bracket.');
+    }
+
+    const activeParticipants = tournament.participants.filter(
+      (p) => p.status !== ParticipantStatuses.DISQUALIFIED
+    );
+
+    let competitors: Array<{
+      id: string;
+      name: string;
+      tag?: string | null;
+      type: string;
+    }> = [];
+
+    if (tournament.format === TournamentFormats.SOLO) {
+      competitors = activeParticipants.map((p) => ({
+        id: p.id,
+        name: p.inGameName || p.user.username,
+        tag: null,
+        type: 'SOLO'
+      }));
+    } else {
+      const teamMap = new Map<string, (typeof activeParticipants)[0]>();
+      for (const p of activeParticipants) {
+        if (p.teamId && !teamMap.has(p.teamId)) {
+          teamMap.set(p.teamId, p);
+        }
+      }
+      competitors = Array.from(teamMap.values()).map((p) => ({
+        id: p.id,
+        name: p.team?.name || p.inGameName || p.user.username,
+        tag: p.team?.tag || null,
+        type: tournament.format
+      }));
+    }
+
+    if (competitors.length < 2) {
+      throw new Error(
+        `BAD_REQUEST: At least 2 active competitors are required to generate a bracket. Current registered count: ${competitors.length}`
+      );
+    }
+
+    // Shuffle competitors for fair random seeding
+    for (let i = competitors.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [competitors[i], competitors[j]] = [competitors[j], competitors[i]];
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      // Clean up previously generated rounds and matches
+      await tx.round.deleteMany({ where: { tournamentId } });
+
+      if (tournament.structure === 'SINGLE_ELIMINATION') {
+        const count = competitors.length;
+        let bracketSize = 2;
+        while (bracketSize < count) {
+          bracketSize *= 2;
+        }
+
+        const totalRounds = Math.log2(bracketSize);
+
+        const getRoundName = (roundNum: number, total: number) => {
+          const fromEnd = total - roundNum + 1;
+          if (fromEnd === 1) return 'Finals';
+          if (fromEnd === 2) return 'Semifinals';
+          if (fromEnd === 3) return 'Quarterfinals';
+          if (fromEnd === 4) return 'Round of 16';
+          if (fromEnd === 5) return 'Round of 32';
+          return `Round ${roundNum}`;
+        };
+
+        const roundEntities = [];
+        for (let r = 1; r <= totalRounds; r++) {
+          const roundName = getRoundName(r, totalRounds);
+          const round = await tx.round.create({
+            data: {
+              tournamentId,
+              roundNumber: r,
+              name: roundName
+            }
+          });
+          roundEntities.push(round);
+        }
+
+        // Generate matches in reverse order so nextMatchId can be set
+        const createdMatchesByRound = new Map<number, any[]>();
+
+        for (let r = totalRounds; r >= 1; r--) {
+          const round = roundEntities[r - 1];
+          const matchesInRound = Math.pow(2, totalRounds - r);
+          const roundMatches = [];
+
+          for (let m = 1; m <= matchesInRound; m++) {
+            let nextMatchId: string | null = null;
+            if (r < totalRounds) {
+              const nextRoundMatches = createdMatchesByRound.get(r + 1);
+              const nextMatchIndex = Math.floor((m - 1) / 2);
+              if (nextRoundMatches && nextRoundMatches[nextMatchIndex]) {
+                nextMatchId = nextRoundMatches[nextMatchIndex].id;
+              }
+            }
+
+            const match = await tx.match.create({
+              data: {
+                tournamentId,
+                roundId: round.id,
+                matchNumber: m,
+                nextMatchId,
+                status: r === 1 ? 'SCHEDULED' : 'PENDING'
+              }
+            });
+            roundMatches.push(match);
+          }
+          createdMatchesByRound.set(r, roundMatches);
+        }
+
+        // Populate Round 1 matches with seeded competitors
+        const round1Matches = createdMatchesByRound.get(1) || [];
+        for (let m = 0; m < round1Matches.length; m++) {
+          const match = round1Matches[m];
+          const comp1 = competitors[m * 2];
+          const comp2 = competitors[m * 2 + 1];
+
+          if (comp1) {
+            await tx.matchResult.create({
+              data: {
+                matchId: match.id,
+                participantId: comp1.id,
+                score: 0,
+                kills: 0,
+                placement: null,
+                isWinner: false
+              }
+            });
+          }
+
+          if (comp2) {
+            await tx.matchResult.create({
+              data: {
+                matchId: match.id,
+                participantId: comp2.id,
+                score: 0,
+                kills: 0,
+                placement: null,
+                isWinner: false
+              }
+            });
+          } else if (comp1 && !comp2) {
+            // Bye auto-advances
+            if (match.nextMatchId) {
+              await tx.match.update({
+                where: { id: match.id },
+                data: {
+                  status: 'COMPLETED',
+                  winnerParticipantId: comp1.id
+                }
+              });
+              await tx.matchResult.create({
+                data: {
+                  matchId: match.nextMatchId,
+                  participantId: comp1.id,
+                  score: 0,
+                  kills: 0,
+                  isWinner: false
+                }
+              });
+            }
+          }
+        }
+      } else {
+        // LEADERBOARD_POINTS / BATTLE ROYALE format
+        const roundNames = ['Match 1 - Opening Scrim', 'Match 2 - Mid Bracket', 'Match 3 - Final Showdown'];
+        for (let r = 1; r <= roundNames.length; r++) {
+          const round = await tx.round.create({
+            data: {
+              tournamentId,
+              roundNumber: r,
+              name: roundNames[r - 1]
+            }
+          });
+
+          const match = await tx.match.create({
+            data: {
+              tournamentId,
+              roundId: round.id,
+              matchNumber: 1,
+              status: r === 1 ? 'IN_PROGRESS' : 'SCHEDULED'
+            }
+          });
+
+          for (const comp of competitors) {
+            await tx.matchResult.create({
+              data: {
+                matchId: match.id,
+                participantId: comp.id,
+                score: 0,
+                kills: 0,
+                placement: null,
+                isWinner: false
+              }
+            });
+          }
+        }
+      }
+
+      await tx.tournament.update({
+        where: { id: tournamentId },
+        data: { status: TournamentStatuses.IN_PROGRESS }
+      });
+
+      return {
+        success: true,
+        message: 'Tournament bracket generated and seeded successfully.',
+        structure: tournament.structure,
+        totalCompetitors: competitors.length
+      };
+    });
+  }
+
+  /**
+   * Commits match scores, automatically determines round winners, and creates next-round fixtures.
+   */
+  static async updateMatchScore(
+    tournamentId: string,
+    matchId: string,
+    actorId: string,
+    isAdmin: boolean,
+    data: {
+      scores: Array<{
+        participantId: string;
+        score: number;
+        kills?: number;
+        placement?: number;
+        isWinner?: boolean;
+      }>;
+      status?: string;
+    }
+  ) {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId }
+    });
+
+    if (!tournament) {
+      throw new Error('NOT_FOUND: Tournament not found.');
+    }
+
+    if (!isAdmin && tournament.organizerId !== actorId) {
+      throw new Error('FORBIDDEN: You do not have permission to score matches in this tournament.');
+    }
+
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        round: true,
+        results: true
+      }
+    });
+
+    if (!match || match.tournamentId !== tournamentId) {
+      throw new Error('NOT_FOUND: Match not found in this tournament.');
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      // Update each score
+      for (const item of data.scores) {
+        await tx.matchResult.upsert({
+          where: {
+            matchId_participantId: {
+              matchId,
+              participantId: item.participantId
+            }
+          },
+          update: {
+            score: Number(item.score || 0),
+            kills: Number(item.kills || 0),
+            placement: item.placement ? Number(item.placement) : null,
+            isWinner: Boolean(item.isWinner),
+            submittedAt: new Date()
+          },
+          create: {
+            matchId,
+            participantId: item.participantId,
+            score: Number(item.score || 0),
+            kills: Number(item.kills || 0),
+            placement: item.placement ? Number(item.placement) : null,
+            isWinner: Boolean(item.isWinner),
+            submittedAt: new Date()
+          }
+        });
+      }
+
+      const newStatus = data.status || 'COMPLETED';
+      let winnerParticipantId: string | null = null;
+
+      const explicitWinner = data.scores.find((s) => s.isWinner);
+      if (explicitWinner) {
+        winnerParticipantId = explicitWinner.participantId;
+      } else if (data.scores.length > 0) {
+        const sorted = [...data.scores].sort((a, b) => (b.score || 0) - (a.score || 0));
+        if (sorted[0] && (sorted[0].score || 0) > 0) {
+          winnerParticipantId = sorted[0].participantId;
+          await tx.matchResult.update({
+            where: {
+              matchId_participantId: {
+                matchId,
+                participantId: winnerParticipantId
+              }
+            },
+            data: { isWinner: true }
+          });
+        }
+      }
+
+      const updatedMatch = await tx.match.update({
+        where: { id: matchId },
+        data: {
+          status: newStatus,
+          winnerParticipantId: winnerParticipantId || match.winnerParticipantId,
+          completedAt: newStatus === 'COMPLETED' ? new Date() : null
+        },
+        include: {
+          round: true,
+          results: {
+            include: {
+              participant: {
+                include: {
+                  user: { select: { id: true, username: true } },
+                  team: { select: { id: true, name: true, tag: true } }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Elimination Bracket Advancement
+      if (
+        tournament.structure === 'SINGLE_ELIMINATION' &&
+        newStatus === 'COMPLETED' &&
+        updatedMatch.winnerParticipantId &&
+        updatedMatch.nextMatchId
+      ) {
+        await tx.matchResult.upsert({
+          where: {
+            matchId_participantId: {
+              matchId: updatedMatch.nextMatchId,
+              participantId: updatedMatch.winnerParticipantId
+            }
+          },
+          update: {},
+          create: {
+            matchId: updatedMatch.nextMatchId,
+            participantId: updatedMatch.winnerParticipantId,
+            score: 0,
+            kills: 0,
+            isWinner: false
+          }
+        });
+
+        const nextCount = await tx.matchResult.count({
+          where: { matchId: updatedMatch.nextMatchId }
+        });
+
+        if (nextCount >= 2) {
+          await tx.match.update({
+            where: { id: updatedMatch.nextMatchId },
+            data: { status: 'SCHEDULED' }
+          });
+        }
+      }
+
+      return updatedMatch;
+    });
+  }
+
+  /**
+   * Retrieves structured match tree for frontend bracket rendering.
+   */
+  static async getBracket(tournamentId: string) {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        game: { select: { id: true, title: true, slug: true, platform: true } },
+        rounds: {
+          orderBy: { roundNumber: 'asc' },
+          include: {
+            matches: {
+              orderBy: { matchNumber: 'asc' },
+              include: {
+                results: {
+                  include: {
+                    participant: {
+                      include: {
+                        user: { select: { id: true, username: true, avatarUrl: true } },
+                        team: { select: { id: true, name: true, tag: true } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!tournament) {
+      throw new Error('NOT_FOUND: Tournament not found.');
+    }
+
+    return {
+      tournamentId: tournament.id,
+      title: tournament.title,
+      structure: tournament.structure,
+      format: tournament.format,
+      status: tournament.status,
+      rounds: tournament.rounds.map((r) => ({
+        id: r.id,
+        roundNumber: r.roundNumber,
+        name: r.name,
+        matches: r.matches.map((m) => ({
+          id: m.id,
+          matchNumber: m.matchNumber,
+          status: m.status,
+          nextMatchId: m.nextMatchId,
+          winnerParticipantId: m.winnerParticipantId,
+          scheduledAt: m.scheduledAt,
+          completedAt: m.completedAt,
+          competitors: m.results.map((res) => ({
+            resultId: res.id,
+            participantId: res.participantId,
+            score: res.score,
+            kills: res.kills || 0,
+            placement: res.placement,
+            isWinner: res.isWinner,
+            name:
+              tournament.format === TournamentFormats.SOLO
+                ? res.participant.inGameName || res.participant.user.username
+                : res.participant.team?.name || res.participant.inGameName || res.participant.user.username,
+            tag: res.participant.team?.tag || null,
+            username: res.participant.user.username,
+            avatarUrl: res.participant.user.avatarUrl
+          }))
+        }))
+      }))
+    };
+  }
+
+  /**
+   * Retrieves live recalculated leaderboard standings (Points / Battle Royale format).
+   */
+  static async getLeaderboard(tournamentId: string) {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        participants: {
+          include: {
+            user: { select: { id: true, username: true } },
+            team: { select: { id: true, name: true, tag: true } },
+            matchResults: true
+          }
+        }
+      }
+    });
+
+    if (!tournament) {
+      throw new Error('NOT_FOUND: Tournament not found.');
+    }
+
+    const isSolo = tournament.format === TournamentFormats.SOLO;
+
+    if (isSolo) {
+      const rows = tournament.participants.map((p) => {
+        const totalScore = p.matchResults.reduce((sum, r) => sum + r.score, 0);
+        const totalKills = p.matchResults.reduce((sum, r) => sum + (r.kills || 0), 0);
+        const matchesPlayed = p.matchResults.length;
+        const wins = p.matchResults.filter((r) => r.isWinner).length;
+        const bestPlacement = p.matchResults.reduce((min, r) => {
+          if (!r.placement) return min;
+          return min === null ? r.placement : Math.min(min, r.placement);
+        }, null as number | null);
+
+        return {
+          participantId: p.id,
+          name: p.inGameName || p.user.username,
+          username: p.user.username,
+          tag: null,
+          matchesPlayed,
+          totalScore,
+          totalKills,
+          wins,
+          bestPlacement: bestPlacement || '-',
+          disqualified: p.status === ParticipantStatuses.DISQUALIFIED
+        };
+      });
+
+      rows.sort((a, b) => b.totalScore - a.totalScore || b.totalKills - a.totalKills || b.wins - a.wins);
+
+      return rows.map((r, idx) => ({ rank: idx + 1, ...r }));
+    } else {
+      const teamMap = new Map<
+        string,
+        {
+          teamId: string;
+          name: string;
+          tag?: string | null;
+          totalScore: number;
+          totalKills: number;
+          matchesPlayed: number;
+          wins: number;
+          bestPlacement: number | null;
+          participants: string[];
+        }
+      >();
+
+      for (const p of tournament.participants) {
+        if (!p.team) continue;
+        const entry = teamMap.get(p.team.id) || {
+          teamId: p.team.id,
+          name: p.team.name,
+          tag: p.team.tag,
+          totalScore: 0,
+          totalKills: 0,
+          matchesPlayed: 0,
+          wins: 0,
+          bestPlacement: null,
+          participants: []
+        };
+
+        const pScore = p.matchResults.reduce((sum, r) => sum + r.score, 0);
+        const pKills = p.matchResults.reduce((sum, r) => sum + (r.kills || 0), 0);
+        entry.totalScore += pScore;
+        entry.totalKills += pKills;
+        entry.matchesPlayed = Math.max(entry.matchesPlayed, p.matchResults.length);
+        entry.wins += p.matchResults.filter((r) => r.isWinner).length;
+        p.matchResults.forEach((r) => {
+          if (r.placement) {
+            entry.bestPlacement =
+              entry.bestPlacement === null ? r.placement : Math.min(entry.bestPlacement, r.placement);
+          }
+        });
+        entry.participants.push(p.inGameName || p.user.username);
+        teamMap.set(p.team.id, entry);
+      }
+
+      const rows = Array.from(teamMap.values());
+      rows.sort((a, b) => b.totalScore - a.totalScore || b.totalKills - a.totalKills || b.wins - a.wins);
+
+      return rows.map((r, idx) => ({ rank: idx + 1, ...r }));
+    }
+  }
 }

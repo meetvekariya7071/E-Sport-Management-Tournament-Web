@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { TournamentService } from '../services/tournament.service';
 import { TournamentFormat } from '../types';
+import { broadcastTournamentEvent } from '../config/socket';
 
 export class TournamentController {
   /**
@@ -430,6 +431,127 @@ export class TournamentController {
       res.status(200).json({ success: true, data: registrations });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  /**
+   * POST /api/tournaments/:id/generate-bracket
+   * Generates bracket structure and seeds competitors into Round 1 fixtures.
+   */
+  static async generateBracket(req: Request, res: Response): Promise<void> {
+    try {
+      const tournamentId = req.params.id;
+      const actorId = req.user!.id;
+      const isAdmin = req.user!.role === 'ADMIN';
+
+      const result = await TournamentService.generateBracket(tournamentId, actorId, isAdmin);
+
+      // Real-time broadcasts
+      const bracket = await TournamentService.getBracket(tournamentId);
+      broadcastTournamentEvent(tournamentId, 'bracket:advance', bracket);
+
+      const leaderboard = await TournamentService.getLeaderboard(tournamentId);
+      broadcastTournamentEvent(tournamentId, 'leaderboard:refresh', leaderboard);
+
+      res.status(201).json(result);
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      } else if (error.message.startsWith('BAD_REQUEST:')) {
+        res.status(400).json({ success: false, error: error.message.replace('BAD_REQUEST: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Failed to generate bracket.' });
+      }
+    }
+  }
+
+  /**
+   * PUT /api/tournaments/:id/matches/:matchId
+   * Commits match scores, automatically determines round winners, and creates next-round fixtures.
+   */
+  static async updateMatchScore(req: Request, res: Response): Promise<void> {
+    try {
+      const tournamentId = req.params.id;
+      const matchId = req.params.matchId;
+      const actorId = req.user!.id;
+      const isAdmin = req.user!.role === 'ADMIN';
+      const { scores, status } = req.body;
+
+      if (!Array.isArray(scores)) {
+        res.status(400).json({ success: false, error: 'Scores array is required.' });
+        return;
+      }
+
+      const updatedMatch = await TournamentService.updateMatchScore(
+        tournamentId,
+        matchId,
+        actorId,
+        isAdmin,
+        { scores, status }
+      );
+
+      // Broadcast real-time score update
+      broadcastTournamentEvent(tournamentId, 'match:update_score', updatedMatch);
+
+      // Broadcast updated bracket structure
+      const bracket = await TournamentService.getBracket(tournamentId);
+      broadcastTournamentEvent(tournamentId, 'bracket:advance', bracket);
+
+      // Broadcast recalculated leaderboard
+      const leaderboard = await TournamentService.getLeaderboard(tournamentId);
+      broadcastTournamentEvent(tournamentId, 'leaderboard:refresh', leaderboard);
+
+      res.status(200).json({
+        success: true,
+        message: 'Match score updated and broadcasted in real time.',
+        data: updatedMatch
+      });
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Failed to update match score.' });
+      }
+    }
+  }
+
+  /**
+   * GET /api/tournaments/:id/bracket
+   * Returns structured match tree for frontend bracket visualizer.
+   */
+  static async getBracket(req: Request, res: Response): Promise<void> {
+    try {
+      const tournamentId = req.params.id;
+      const bracket = await TournamentService.getBracket(tournamentId);
+      res.status(200).json({ success: true, data: bracket });
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    }
+  }
+
+  /**
+   * GET /api/tournaments/:id/leaderboard
+   * Returns live standings for points / battle royale tournaments.
+   */
+  static async getLeaderboard(req: Request, res: Response): Promise<void> {
+    try {
+      const tournamentId = req.params.id;
+      const leaderboard = await TournamentService.getLeaderboard(tournamentId);
+      res.status(200).json({ success: true, data: leaderboard });
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message });
+      }
     }
   }
 }

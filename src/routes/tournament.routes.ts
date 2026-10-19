@@ -73,4 +73,26 @@ router.post(
   TournamentController.disqualifyParticipant
 );
 
+// Bracket Generation & Seeding
+router.post(
+  '/:id/generate-bracket',
+  authenticate,
+  authorizeRoles([Roles.ADMIN, Roles.ORGANIZER]),
+  TournamentController.generateBracket
+);
+
+// Real-Time Match Scoring & Round Advancement
+router.put(
+  '/:id/matches/:matchId',
+  authenticate,
+  authorizeRoles([Roles.ADMIN, Roles.ORGANIZER]),
+  TournamentController.updateMatchScore
+);
+
+// Structured Bracket Tree
+router.get('/:id/bracket', TournamentController.getBracket);
+
+// Live Recalculated Leaderboard
+router.get('/:id/leaderboard', TournamentController.getLeaderboard);
+
 export default router;

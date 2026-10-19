@@ -133,7 +133,7 @@ export const TournamentDetailsPage: React.FC = () => {
   return (
     <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto py-8 px-4">
       {/* Navigation Breadcrumb */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           to="/tournaments"
           className="text-xs font-mono text-cyan-400 hover:underline inline-flex items-center gap-1.5"
@@ -141,14 +141,31 @@ export const TournamentDetailsPage: React.FC = () => {
           <ArrowLeft className="w-3.5 h-3.5" /> Back to tournament catalog
         </Link>
 
-        {canModerate && (
+        <div className="flex flex-wrap items-center gap-2">
           <Link
-            to={`/organizer/tournaments/${tournament.id}/database`}
-            className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 text-xs font-mono font-bold"
+            to={`/tournaments/${tournament.id}/live`}
+            className="px-3.5 py-1.5 rounded-xl bg-cyan-400/10 hover:bg-cyan-400/20 border border-cyan-500/40 text-cyan-400 text-xs font-heading font-bold shadow-glow-cyan"
           >
-            Open Tournament Scoped Database &rarr;
+            Live Bracket & Spectator &rarr;
           </Link>
-        )}
+
+          {canModerate && (
+            <>
+              <Link
+                to={`/organizer/tournaments/${tournament.id}/scoring`}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs font-heading font-bold"
+              >
+                Match Scoring Console &rarr;
+              </Link>
+              <Link
+                to={`/organizer/tournaments/${tournament.id}/database`}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-mono font-bold"
+              >
+                Tournament DB &rarr;
+              </Link>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Hero Tournament Banner */}

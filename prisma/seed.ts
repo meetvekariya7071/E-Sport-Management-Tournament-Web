@@ -146,24 +146,55 @@ async function main() {
     }
   });
 
-  // Seed sample solo participant (teamId is null)
-  await prisma.tournamentParticipant.upsert({
-    where: {
-      tournamentId_userId: {
-        tournamentId: soloTournament.id,
-        userId: player1.id
-      }
-    },
+  const player3 = await prisma.user.upsert({
+    where: { email: 'player3@esports.com' },
     update: {},
     create: {
-      tournamentId: soloTournament.id,
-      userId: player1.id,
-      teamId: null,
-      status: 'REGISTERED'
+      email: 'player3@esports.com',
+      username: 'ApexViper',
+      passwordHash,
+      role: 'PLAYER',
+      bio: 'Grandmaster Contender'
     }
   });
 
-  console.log('[Seed] Seeded sample Solo Tournament with Solo registration (bypassed team).');
+  const player4 = await prisma.user.upsert({
+    where: { email: 'player4@esports.com' },
+    update: {},
+    create: {
+      email: 'player4@esports.com',
+      username: 'BlitzMaster',
+      passwordHash,
+      role: 'PLAYER',
+      bio: 'Tactical Strategist'
+    }
+  });
+
+  // Seed sample solo participants (teamId is null)
+  for (const p of [player1, player2, player3, player4]) {
+    await prisma.tournamentParticipant.upsert({
+      where: {
+        tournamentId_userId: {
+          tournamentId: soloTournament.id,
+          userId: p.id
+        }
+      },
+      update: { status: 'CHECKED_IN' },
+      create: {
+        tournamentId: soloTournament.id,
+        userId: p.id,
+        teamId: null,
+        status: 'CHECKED_IN'
+      }
+    });
+  }
+
+  await prisma.tournament.update({
+    where: { id: soloTournament.id },
+    data: { currentCount: 4 }
+  });
+
+  console.log('[Seed] Seeded sample Solo Tournament with 4 Checked-In players.');
   console.log('[Seed] Seeding completed successfully!');
 }
 

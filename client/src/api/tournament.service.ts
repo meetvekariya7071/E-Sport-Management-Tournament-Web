@@ -229,5 +229,33 @@ export const tournamentService = {
   ): Promise<any> {
     const res = await api.post(`/tournaments/${tournamentId}/join`, data);
     return res.data.data;
+  },
+
+  // Generate & Seed Tournament Bracket
+  async generateBracket(tournamentId: string): Promise<any> {
+    const res = await api.post(`/tournaments/${tournamentId}/generate-bracket`);
+    return res.data;
+  },
+
+  // Update Match Score & Advance Round Winners
+  async updateMatchScore(
+    tournamentId: string,
+    matchId: string,
+    data: { scores: any[]; status?: string }
+  ): Promise<any> {
+    const res = await api.put(`/tournaments/${tournamentId}/matches/${matchId}`, data);
+    return res.data;
+  },
+
+  // Get Structured Bracket Tree
+  async getBracket(tournamentId: string): Promise<any> {
+    const res = await api.get(`/tournaments/${tournamentId}/bracket`);
+    return res.data.data;
+  },
+
+  // Get Live Recalculated Leaderboard
+  async getLeaderboard(tournamentId: string): Promise<any[]> {
+    const res = await api.get(`/tournaments/${tournamentId}/leaderboard`);
+    return res.data.data;
   }
 };

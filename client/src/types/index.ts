@@ -137,3 +137,60 @@ export interface PlayerRegistration {
     }>;
   } | null;
 }
+
+export interface BracketCompetitor {
+  resultId?: string;
+  participantId: string;
+  score: number;
+  kills: number;
+  placement?: number | null;
+  isWinner: boolean;
+  name: string;
+  tag?: string | null;
+  username: string;
+  avatarUrl?: string | null;
+}
+
+export interface BracketMatch {
+  id: string;
+  matchNumber: number;
+  status: string;
+  nextMatchId?: string | null;
+  winnerParticipantId?: string | null;
+  scheduledAt?: string | null;
+  completedAt?: string | null;
+  competitors: BracketCompetitor[];
+}
+
+export interface BracketRound {
+  id: string;
+  roundNumber: number;
+  name: string;
+  matches: BracketMatch[];
+}
+
+export interface BracketData {
+  tournamentId: string;
+  title: string;
+  structure: string;
+  format: TournamentFormat;
+  status: TournamentStatus;
+  rounds: BracketRound[];
+}
+
+export interface LeaderboardRow {
+  rank: number;
+  participantId?: string;
+  teamId?: string;
+  name: string;
+  username?: string;
+  tag?: string | null;
+  matchesPlayed: number;
+  totalScore: number;
+  totalKills: number;
+  wins: number;
+  bestPlacement?: number | string | null;
+  disqualified?: boolean;
+  participants?: string[];
+}
+

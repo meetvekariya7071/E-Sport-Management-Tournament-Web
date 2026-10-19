@@ -15,7 +15,8 @@ import {
   Save,
   Plus,
   Coins,
-  AlertCircle
+  AlertCircle,
+  Zap
 } from 'lucide-react';
 
 export const OrganizerDatabaseViewer: React.FC = () => {
@@ -224,6 +225,14 @@ export const OrganizerDatabaseViewer: React.FC = () => {
 
         {/* Action Controls */}
         <div className="flex items-center space-x-3 w-full sm:w-auto">
+          <Link
+            to={`/organizer/tournaments/${id}/scoring`}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-heading font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-glow-cyan"
+          >
+            <Zap className="w-4 h-4 text-amber-400" />
+            <span>Real-Time Scoring Console</span>
+          </Link>
+
           {!isCompleted ? (
             <button
               onClick={handleCompleteTournament}
