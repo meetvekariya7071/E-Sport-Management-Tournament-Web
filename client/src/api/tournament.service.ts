@@ -34,6 +34,7 @@ export interface TournamentDatabaseView {
     teamId: string;
     name: string;
     tag?: string | null;
+    inviteCode?: string | null;
     captain: { id: string; username: string; email: string };
     rosterCount: number;
     members: Array<{ userId: string; username: string; role: string }>;
@@ -257,5 +258,48 @@ export const tournamentService = {
   async getLeaderboard(tournamentId: string): Promise<any[]> {
     const res = await api.get(`/tournaments/${tournamentId}/leaderboard`);
     return res.data.data;
+  },
+
+  // Streaming CSV Exports
+  async exportParticipants(tournamentId: string): Promise<void> {
+    const res = await api.get(`/tournaments/${tournamentId}/export/participants`, {
+      responseType: 'blob'
+    });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `tournament-${tournamentId}-participants.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  async exportTeams(tournamentId: string): Promise<void> {
+    const res = await api.get(`/tournaments/${tournamentId}/export/teams`, {
+      responseType: 'blob'
+    });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `tournament-${tournamentId}-teams.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  async exportScores(tournamentId: string): Promise<void> {
+    const res = await api.get(`/tournaments/${tournamentId}/export/scores`, {
+      responseType: 'blob'
+    });
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `tournament-${tournamentId}-scoreboard.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
   }
 };

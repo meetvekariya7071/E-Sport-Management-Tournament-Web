@@ -45,7 +45,7 @@ export const LoginPage: React.FC = () => {
 
   const handleDemoFill = (email: string) => {
     setEmailOrUsername(email);
-    setPassword('Password123!');
+    setPassword('PASSWORD123!');
   };
 
   return (
@@ -126,7 +126,7 @@ export const LoginPage: React.FC = () => {
           {/* Quick Demo Fills */}
           <div className="mt-6 pt-6 border-t border-slate-800 text-center">
             <span className="text-[11px] font-mono text-slate-400 block mb-2 uppercase tracking-wider">
-              Fast Demo Accounts (Password: Password123!)
+              Fast Demo Accounts (Password: PASSWORD123!)
             </span>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button

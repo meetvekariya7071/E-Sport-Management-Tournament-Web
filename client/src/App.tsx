@@ -17,6 +17,9 @@ import { TournamentDetailsPage } from './pages/TournamentDetailsPage';
 import { TournamentCatalogPage } from './pages/TournamentCatalogPage';
 import { TournamentLivePage } from './pages/TournamentLivePage';
 import { OrganizerScoringConsole } from './pages/OrganizerScoringConsole';
+import { RefereeDashboard } from './pages/RefereeDashboard';
+import { DisputesReviewBoard } from './pages/DisputesReviewBoard';
+import { GamesCatalogPage } from './pages/GamesCatalogPage';
 
 export const App: React.FC = () => {
   return (
@@ -28,6 +31,7 @@ export const App: React.FC = () => {
           <Route path="/tournaments" element={<TournamentCatalogPage />} />
           <Route path="/tournaments/:id" element={<TournamentDetailsPage />} />
           <Route path="/tournaments/:id/live" element={<TournamentLivePage />} />
+          <Route path="/games" element={<GamesCatalogPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
         </Route>
@@ -40,6 +44,14 @@ export const App: React.FC = () => {
           {/* Admin Routes - Strictly ADMIN */}
           <Route
             path="/admin"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/audit-logs"
             element={
               <ProtectedRoute allowedRoles={['ADMIN']}>
                 <AdminDashboard />
@@ -73,6 +85,42 @@ export const App: React.FC = () => {
             element={
               <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}>
                 <OrganizerScoringConsole />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Disputes Review Board - Accessible to Organizers, Referees, and Admins */}
+          <Route
+            path="/organizer/disputes"
+            element={
+              <ProtectedRoute allowedRoles={['ORGANIZER', 'REFEREE', 'ADMIN']}>
+                <DisputesReviewBoard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/referee/disputes"
+            element={
+              <ProtectedRoute allowedRoles={['REFEREE', 'ORGANIZER', 'ADMIN']}>
+                <DisputesReviewBoard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Referee Portal & Verification Dashboard - Strictly REFEREE / ADMIN */}
+          <Route
+            path="/referee"
+            element={
+              <ProtectedRoute allowedRoles={['REFEREE', 'ADMIN']}>
+                <RefereeDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/referee/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={['REFEREE', 'ADMIN']}>
+                <RefereeDashboard />
               </ProtectedRoute>
             }
           />

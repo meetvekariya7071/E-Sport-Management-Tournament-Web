@@ -203,48 +203,119 @@ export class TournamentService {
    * - Database 3: Scores / Leaderboard Database (matrix of matches, scores, kills, placement, winners)
    */
   static async getTournamentDatabase(tournamentId: string, organizerId: string, isAdmin = false) {
+    // First check tournament basic format and authorization with lightweight select
+    const baseInfo = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: {
+        id: true,
+        organizerId: true,
+        format: true
+      }
+    });
+
+    if (!baseInfo) {
+      throw new Error('NOT_FOUND: Tournament does not exist.');
+    }
+
+    if (!isAdmin && baseInfo.organizerId !== organizerId) {
+      throw new Error('FORBIDDEN: You do not own this tournament.');
+    }
+
+    const isSolo = baseInfo.format === TournamentFormats.SOLO;
+
+    // Optimized select projection
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
-      include: {
-        game: true,
-        organizer: { select: { id: true, username: true, email: true } },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        description: true,
+        bannerImage: true,
+        prizePool: true,
+        structure: true,
+        format: true,
+        status: true,
+        maxParticipants: true,
+        currentCount: true,
+        startDate: true,
+        endDate: true,
+        organizerId: true,
+        game: {
+          select: { id: true, title: true, slug: true, genre: true, platform: true }
+        },
+        organizer: {
+          select: { id: true, username: true, email: true }
+        },
         participants: {
-          include: {
-            user: { select: { id: true, username: true, email: true, isBanned: true } },
-            team: { select: { id: true, name: true, tag: true } }
+          select: {
+            id: true,
+            teamId: true,
+            inGameName: true,
+            status: true,
+            seed: true,
+            disqualifyReason: true,
+            registeredAt: true,
+            user: {
+              select: { id: true, username: true, email: true, isBanned: true }
+            },
+            team: {
+              select: { id: true, name: true, tag: true }
+            }
           },
           orderBy: { registeredAt: 'asc' }
         },
         teams: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            tag: true,
+            inviteCode: true,
+            createdAt: true,
             captain: { select: { id: true, username: true, email: true } },
             members: {
-              include: {
+              select: {
+                role: true,
                 user: { select: { id: true, username: true } }
               }
             }
-          }
+          },
+          orderBy: { createdAt: 'asc' }
         },
         rounds: {
-          orderBy: { roundNumber: 'asc' },
-          include: {
+          select: {
+            id: true,
+            roundNumber: true,
+            name: true,
             matches: {
-              orderBy: { matchNumber: 'asc' },
-              include: {
+              select: {
+                id: true,
+                matchNumber: true,
+                status: true,
+                scheduledAt: true,
+                completedAt: true,
                 referee: { select: { id: true, username: true } },
                 results: {
-                  include: {
+                  select: {
+                    id: true,
+                    participantId: true,
+                    score: true,
+                    kills: true,
+                    placement: true,
+                    isWinner: true,
                     participant: {
-                      include: {
+                      select: {
                         user: { select: { username: true } },
                         team: { select: { name: true } }
                       }
                     }
                   }
                 }
-              }
+              },
+              orderBy: { matchNumber: 'asc' }
             }
-          }
+          },
+          orderBy: { roundNumber: 'asc' }
         }
       }
     });
@@ -252,12 +323,6 @@ export class TournamentService {
     if (!tournament) {
       throw new Error('NOT_FOUND: Tournament does not exist.');
     }
-
-    if (!isAdmin && tournament.organizerId !== organizerId) {
-      throw new Error('FORBIDDEN: You do not own this tournament.');
-    }
-
-    const isSolo = tournament.format === TournamentFormats.SOLO;
 
     // Build database views
     return {
@@ -304,6 +369,7 @@ export class TournamentService {
             teamId: t.id,
             name: t.name,
             tag: t.tag,
+            inviteCode: t.inviteCode || null,
             captain: t.captain,
             rosterCount: t.members.length,
             members: t.members.map((m) => ({
@@ -677,6 +743,17 @@ export class TournamentService {
    * Scoped Tournament Details
    */
   static async getTournamentDetails(tournamentId: string) {
+    const base = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { format: true }
+    });
+
+    if (!base) {
+      throw new Error('NOT_FOUND: Tournament not found.');
+    }
+
+    const isSolo = base.format === TournamentFormats.SOLO;
+
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       include: {
@@ -689,16 +766,20 @@ export class TournamentService {
           },
           orderBy: { registeredAt: 'asc' }
         },
-        teams: {
-          include: {
-            captain: { select: { id: true, username: true } },
-            members: {
-              include: {
-                user: { select: { id: true, username: true } }
+        ...(isSolo
+          ? {}
+          : {
+              teams: {
+                include: {
+                  captain: { select: { id: true, username: true } },
+                  members: {
+                    include: {
+                      user: { select: { id: true, username: true } }
+                    }
+                  }
+                }
               }
-            }
-          }
-        },
+            }),
         rounds: {
           orderBy: { roundNumber: 'asc' },
           include: {
@@ -729,7 +810,7 @@ export class TournamentService {
 
     return {
       ...tournament,
-      teams: tournament.format === TournamentFormats.SOLO ? [] : tournament.teams
+      teams: (tournament as any).teams || []
     };
   }
 

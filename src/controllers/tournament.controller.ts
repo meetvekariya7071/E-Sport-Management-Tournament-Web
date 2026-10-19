@@ -2,6 +2,11 @@ import { Request, Response } from 'express';
 import { TournamentService } from '../services/tournament.service';
 import { TournamentFormat } from '../types';
 import { broadcastTournamentEvent } from '../config/socket';
+import { cacheService } from '../services/cache.service';
+import { ExportService } from '../services/export.service';
+import { AuditService } from '../services/audit.service';
+import { NotificationService } from '../services/notification.service';
+import { prisma } from '../config/db';
 
 export class TournamentController {
   /**
@@ -49,6 +54,18 @@ export class TournamentController {
         startDate,
         endDate,
         rules
+      });
+
+      cacheService.invalidatePublicCatalogs();
+
+      // Audit Log
+      await AuditService.log({
+        actorId: organizerId,
+        actionType: 'TOURNAMENT_CREATE',
+        targetEntity: 'TOURNAMENT',
+        targetId: tournament.id,
+        details: { title: tournament.title, format: tournament.format },
+        ipAddress: req.ip || req.socket.remoteAddress
       });
 
       res.status(201).json({
@@ -100,6 +117,7 @@ export class TournamentController {
     try {
       const { id } = req.params;
       const updated = await TournamentService.updateTournament(id, req.user!.id, req.body);
+      cacheService.invalidateTournament(id);
       res.status(200).json({ success: true, message: 'Tournament updated successfully.', data: updated });
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -120,6 +138,7 @@ export class TournamentController {
       const { id } = req.params;
       const isAdmin = req.user!.role === 'ADMIN';
       await TournamentService.deleteTournament(id, req.user!.id, isAdmin);
+      cacheService.invalidateTournament(id);
       res.status(200).json({ success: true, message: 'Tournament deleted successfully.' });
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -174,6 +193,8 @@ export class TournamentController {
         isAdmin
       });
 
+      cacheService.invalidateTournament(id);
+
       res.status(200).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -194,6 +215,7 @@ export class TournamentController {
       const { id } = req.params;
       const isAdmin = req.user!.role === 'ADMIN';
       const completed = await TournamentService.completeTournament(id, req.user!.id, isAdmin);
+      cacheService.invalidateTournament(id);
       res.status(200).json({
         success: true,
         message: 'Tournament has been officially concluded and score database is archived.',
@@ -226,6 +248,8 @@ export class TournamentController {
         actorId,
         reason
       });
+
+      cacheService.invalidateTournament(tournamentId);
 
       res.status(200).json({
         success: true,
@@ -321,6 +345,7 @@ export class TournamentController {
       const { inGameName } = req.body;
 
       const result = await TournamentService.registerSolo(tournamentId, userId, inGameName);
+      cacheService.invalidateTournament(tournamentId);
       res.status(201).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -352,6 +377,7 @@ export class TournamentController {
         tag,
         inGameName
       });
+      cacheService.invalidateTournament(tournamentId);
       res.status(201).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -382,6 +408,27 @@ export class TournamentController {
         inviteCode,
         inGameName
       });
+      cacheService.invalidateTournament(tournamentId);
+
+      // Notify Team Captain
+      try {
+        const teamRecord = await prisma.team.findUnique({
+          where: { id: result.team.id },
+          select: { captainId: true, name: true }
+        });
+        if (teamRecord && teamRecord.captainId && teamRecord.captainId !== userId) {
+          await NotificationService.send({
+            userId: teamRecord.captainId,
+            title: `Player Joined Your Squad`,
+            message: `${req.user!.username} joined team "${teamRecord.name}".`,
+            type: 'INVITE',
+            link: `/player/my-tournaments`
+          });
+        }
+      } catch (err) {
+        console.error('[Notification Error in joinTeam]', err);
+      }
+
       res.status(200).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -408,6 +455,7 @@ export class TournamentController {
       const userId = req.user!.id;
 
       const result = await TournamentService.withdrawRegistration(tournamentId, userId);
+      cacheService.invalidateTournament(tournamentId);
       res.status(200).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -445,6 +493,7 @@ export class TournamentController {
       const isAdmin = req.user!.role === 'ADMIN';
 
       const result = await TournamentService.generateBracket(tournamentId, actorId, isAdmin);
+      cacheService.invalidateTournament(tournamentId);
 
       // Real-time broadcasts
       const bracket = await TournamentService.getBracket(tournamentId);
@@ -452,6 +501,33 @@ export class TournamentController {
 
       const leaderboard = await TournamentService.getLeaderboard(tournamentId);
       broadcastTournamentEvent(tournamentId, 'leaderboard:refresh', leaderboard);
+
+      // Notify active participants that brackets are live
+      try {
+        const participants = await prisma.tournamentParticipant.findMany({
+          where: { tournamentId },
+          select: { userId: true }
+        });
+        const userIds = participants.map((p) => p.userId);
+        await NotificationService.sendBulk(userIds, {
+          title: 'Tournament Brackets Live!',
+          message: 'Match fixtures have been scheduled. Check your bracket and match schedule now.',
+          type: 'MATCH_START',
+          link: `/tournaments/${tournamentId}`
+        });
+      } catch (notifyErr) {
+        console.error('[Notification Error in generateBracket]', notifyErr);
+      }
+
+      // Audit Log
+      await AuditService.log({
+        actorId,
+        actionType: 'BRACKET_GENERATE',
+        targetEntity: 'TOURNAMENT',
+        targetId: tournamentId,
+        details: { totalCompetitors: result.totalCompetitors },
+        ipAddress: req.ip || req.socket.remoteAddress
+      });
 
       res.status(201).json(result);
     } catch (error: any) {
@@ -492,6 +568,8 @@ export class TournamentController {
         { scores, status }
       );
 
+      cacheService.invalidateTournament(tournamentId);
+
       // Broadcast real-time score update
       broadcastTournamentEvent(tournamentId, 'match:update_score', updatedMatch);
 
@@ -502,6 +580,35 @@ export class TournamentController {
       // Broadcast recalculated leaderboard
       const leaderboard = await TournamentService.getLeaderboard(tournamentId);
       broadcastTournamentEvent(tournamentId, 'leaderboard:refresh', leaderboard);
+
+      // Audit Log
+      await AuditService.log({
+        actorId,
+        actionType: 'SCORE_UPDATE',
+        targetEntity: 'MATCH',
+        targetId: matchId,
+        details: { tournamentId, status },
+        ipAddress: req.ip || req.socket.remoteAddress
+      });
+
+      // Notify match participants of updated score
+      try {
+        if (updatedMatch.results) {
+          for (const resItem of updatedMatch.results) {
+            if (resItem.participant?.user?.id) {
+              await NotificationService.send({
+                userId: resItem.participant.user.id,
+                title: 'Match Score Recorded',
+                message: `Official match score has been updated for Match #${updatedMatch.matchNumber}.`,
+                type: 'SCORE_UPDATE',
+                link: `/tournaments/${tournamentId}`
+              });
+            }
+          }
+        }
+      } catch (notifErr) {
+        console.error('[Notification Error in updateMatchScore]', notifErr);
+      }
 
       res.status(200).json({
         success: true,
@@ -546,6 +653,66 @@ export class TournamentController {
       const tournamentId = req.params.id;
       const leaderboard = await TournamentService.getLeaderboard(tournamentId);
       res.status(200).json({ success: true, data: leaderboard });
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    }
+  }
+
+  /**
+   * GET /api/tournaments/:id/export/participants
+   * Streams CSV download of participant details (IGN, User Email, Registration Date, Check-in status).
+   */
+  static async exportParticipants(req: Request, res: Response): Promise<void> {
+    try {
+      const tournamentId = req.params.id;
+      const { filename, csv } = await ExportService.exportParticipantsCsv(tournamentId);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(csv);
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    }
+  }
+
+  /**
+   * GET /api/tournaments/:id/export/teams
+   * Streams CSV download of team rosters, member slots, and captain information (Duo/Squad only).
+   */
+  static async exportTeams(req: Request, res: Response): Promise<void> {
+    try {
+      const tournamentId = req.params.id;
+      const { filename, csv } = await ExportService.exportTeamsCsv(tournamentId);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(csv);
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    }
+  }
+
+  /**
+   * GET /api/tournaments/:id/export/scores
+   * Streams CSV download of final match placements, kill counts, and aggregate points.
+   */
+  static async exportScores(req: Request, res: Response): Promise<void> {
+    try {
+      const tournamentId = req.params.id;
+      const { filename, csv } = await ExportService.exportScoresCsv(tournamentId);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(csv);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
         res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });

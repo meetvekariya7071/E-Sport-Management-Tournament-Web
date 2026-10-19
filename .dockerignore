@@ -1,0 +1,11 @@
+node_modules
+client
+dist
+.git
+.gitignore
+.env
+dev.db
+dev.db-journal
+tests
+coverage
+*.log

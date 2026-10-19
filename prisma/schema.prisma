@@ -31,6 +31,11 @@ model User {
   teamMemberships      TeamMember[]
   participations       TournamentParticipant[]
   adjudicatedMatches   Match[]                 @relation("RefereeMatches")
+  verifiedMatches      Match[]                 @relation("VerifiedMatches")
+  raisedDisputes       Dispute[]               @relation("PlayerDisputes")
+  resolvedDisputes     Dispute[]               @relation("ResolvedDisputes")
+  notifications        Notification[]
+  auditLogs            AuditLog[]              @relation("UserAuditLogs")
 
   @@index([role, isBanned])
   @@map("users")
@@ -92,7 +97,9 @@ model Tournament {
   participants    TournamentParticipant[]
   rounds          Round[]
   matches         Match[]
+  disputes        Dispute[]
 
+  @@index([status, gameId])
   @@index([organizerId, status])
   @@index([status, startDate])
   @@index([gameId])
@@ -118,6 +125,7 @@ model Team {
   participants TournamentParticipant[]
 
   @@unique([tournamentId, name])
+  @@index([tournamentId, inviteCode])
   @@index([tournamentId])
   @@index([inviteCode])
   @@map("teams")
@@ -149,7 +157,7 @@ model TournamentParticipant {
   userId           String        @map("user_id")
   teamId           String?       @map("team_id")
   inGameName       String?       @map("in_game_name")
-  status           String        @default("REGISTERED") // "REGISTERED" | "CHECKED_IN" | "DISQUALIFIED" | "ELIMINATED"
+  status           String        @default("REGISTERED") // "REGISTERED" | "CHECKED_IN" | "NO_SHOW" | "DISQUALIFIED" | "ELIMINATED"
   seed             Int?
   disqualifiedBy   String?       @map("disqualified_by")
   disqualifyReason String?       @map("disqualify_reason")
@@ -192,6 +200,9 @@ model Match {
   winnerParticipantId String?       @map("winner_participant_id")
   nextMatchId         String?       @map("next_match_id")
   status              String        @default("PENDING") // "PENDING" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "DISPUTED"
+  isVerified          Boolean       @default(false) @map("is_verified")
+  verifiedAt          DateTime?     @map("verified_at")
+  verifiedById        String?       @map("verified_by_id")
   scheduledAt         DateTime?     @map("scheduled_at")
   completedAt         DateTime?     @map("completed_at")
   createdAt           DateTime      @default(now()) @map("created_at")
@@ -199,13 +210,17 @@ model Match {
   tournament      Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   round           Round         @relation(fields: [roundId], references: [id], onDelete: Cascade)
   referee         User?         @relation("RefereeMatches", fields: [refereeId], references: [id], onDelete: SetNull)
+  verifier        User?         @relation("VerifiedMatches", fields: [verifiedById], references: [id], onDelete: SetNull)
   nextMatch       Match?        @relation("BracketAdvancement", fields: [nextMatchId], references: [id], onDelete: SetNull)
   previousMatches Match[]       @relation("BracketAdvancement")
   results         MatchResult[]
+  disputes        Dispute[]
 
   @@unique([roundId, matchNumber])
   @@index([tournamentId, roundId])
+  @@index([tournamentId, status])
   @@index([refereeId, status])
+  @@index([isVerified])
   @@map("matches")
 }
 
@@ -224,6 +239,79 @@ model MatchResult {
   participant   TournamentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
 
   @@unique([matchId, participantId])
+  @@index([matchId, isWinner])
   @@index([participantId])
   @@map("match_results")
+}
+
+// =========================================================================
+// DISPUTE RESOLUTION ENGINE
+// =========================================================================
+model Dispute {
+  id             String      @id @default(uuid())
+  tournamentId   String      @map("tournament_id")
+  matchId        String?     @map("match_id")
+  raisedById     String      @map("raised_by_id")
+  reason         String      // "CHEATING" | "INCORRECT_SCORE" | "TOXIC_CONDUCT" | "RULE_VIOLATION" | "OTHER"
+  description    String
+  proofUrl       String?     @map("proof_url")
+  status         String      @default("OPEN") // "OPEN" | "INVESTIGATING" | "RESOLVED" | "DISMISSED"
+  resolutionNote String?     @map("resolution_note")
+  resolvedById   String?     @map("resolved_by_id")
+  resolvedAt     DateTime?   @map("resolved_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  tournament     Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  match          Match?      @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  raisedBy       User        @relation("PlayerDisputes", fields: [raisedById], references: [id], onDelete: Cascade)
+  resolvedBy     User?       @relation("ResolvedDisputes", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([tournamentId, status])
+  @@index([raisedById])
+  @@index([status])
+  @@map("disputes")
+}
+
+// =========================================================================
+// NOTIFICATION ENGINE
+// =========================================================================
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  type      String   // "INVITE" | "MATCH_START" | "SCORE_UPDATE" | "BAN" | "DISPUTE_UPDATE" | "GENERAL"
+  link      String?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// =========================================================================
+// PLATFORM AUDIT TRAIL
+// =========================================================================
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String?  @map("actor_id")
+  actionType   String   @map("action_type") // "GAME_CREATE", "TOURNAMENT_DELETE", "USER_BAN", "SCORE_OVERRIDE", "REFEREE_VERIFY", "DISPUTE_RESOLVE"
+  targetEntity String   @map("target_entity") // "GAME", "TOURNAMENT", "USER", "MATCH", "DISPUTE"
+  targetId     String?  @map("target_id")
+  details      String?  @default("{}") // JSON string
+  ipAddress    String?  @map("ip_address")
+  context      String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  actor        User?    @relation("UserAuditLogs", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actionType])
+  @@index([targetEntity, targetId])
+  @@index([createdAt])
+  @@index([actorId])
+  @@map("audit_logs")
 }

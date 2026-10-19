@@ -4,6 +4,7 @@ import { tournamentService } from '../api/tournament.service';
 import { BracketData, BracketMatch, TournamentDetails } from '../types';
 import { BracketVisualizer } from '../components/BracketVisualizer';
 import { useTournamentSocket } from '../hooks/useTournamentSocket';
+import { useToast } from '../context/ToastContext';
 import {
   Trophy,
   ArrowLeft,
@@ -22,6 +23,7 @@ import {
 
 export const OrganizerScoringConsole: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const toast = useToast();
 
   const [tournament, setTournament] = useState<TournamentDetails | null>(null);
   const [bracket, setBracket] = useState<BracketData | null>(null);
@@ -158,11 +160,15 @@ export const OrganizerScoringConsole: React.FC = () => {
         status: 'COMPLETED'
       });
 
-      setSuccessMsg('Match scores published & bracket advanced in real-time!');
+      const msg = 'Match scores published & bracket advanced in real-time!';
+      setSuccessMsg(msg);
+      toast.success('Scores Updated', msg);
       await loadBracketData();
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to publish match scores.');
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to publish match scores.';
+      setError(errorMsg);
+      toast.error('Scoring Error', errorMsg);
     } finally {
       setIsSubmitting(false);
     }

@@ -20,6 +20,8 @@ export interface Game {
   title: string;
   slug: string;
   genre: string;
+  platform?: string;
+  coverImage?: string | null;
   isTeamBased: boolean;
   minTeamSize: number;
   maxTeamSize: number;

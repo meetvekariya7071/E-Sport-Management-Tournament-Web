@@ -12,8 +12,12 @@ import {
   CheckCircle,
   Ban,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Download,
+  Copy,
+  Check
 } from 'lucide-react';
+import { tournamentService } from '../api/tournament.service';
 
 interface InspectorModalProps {
   isOpen: boolean;
@@ -106,6 +110,35 @@ export const TournamentInspectorModal: React.FC<InspectorModalProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
+            <button
+              onClick={() => tournamentService.exportParticipants(tournamentId)}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 hover:text-cyan-400 flex items-center space-x-1 transition-colors"
+              title="Download Players CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Players CSV</span>
+            </button>
+
+            {!isSolo && (
+              <button
+                onClick={() => tournamentService.exportTeams(tournamentId)}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 hover:text-cyan-400 flex items-center space-x-1 transition-colors"
+                title="Download Teams CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Teams CSV</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => tournamentService.exportScores(tournamentId)}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 hover:text-cyan-400 flex items-center space-x-1 transition-colors"
+              title="Download Scoreboard CSV"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Scores CSV</span>
+            </button>
+
             <button
               onClick={handleDelete}
               disabled={isDeleting}

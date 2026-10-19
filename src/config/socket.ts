@@ -29,6 +29,21 @@ export const initSocket = (httpServer: HttpServer): Server => {
       }
     });
 
+    // Client joins user personal notification room
+    socket.on('join_user', (userId: string) => {
+      if (userId) {
+        const room = `user:${userId}`;
+        socket.join(room);
+        socket.emit('joined_user_room', { userId, room });
+      }
+    });
+
+    socket.on('leave_user', (userId: string) => {
+      if (userId) {
+        socket.leave(`user:${userId}`);
+      }
+    });
+
     socket.on('disconnect', () => {
       // Clean disconnect
     });
@@ -53,3 +68,24 @@ export const broadcastTournamentEvent = (
     io.to(`tournament:${tournamentId}`).emit(event, data);
   }
 };
+
+export const broadcastUserEvent = (
+  userId: string,
+  event: 'notification:new' | string,
+  data: any
+) => {
+  if (io) {
+    io.to(`user:${userId}`).emit(event, data);
+  }
+};
+
+export const getActiveSocketCount = (): number => {
+  if (!io) return 0;
+  return io.engine ? io.engine.clientsCount : 0;
+};
+
+export const isSocketInitialized = (): boolean => {
+  return io !== null;
+};
+
+

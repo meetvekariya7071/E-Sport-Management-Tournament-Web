@@ -17,6 +17,7 @@ import {
 import { tournamentService } from '../api/tournament.service';
 import { Tournament } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 interface RegistrationModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
   onSuccess
 }) => {
   const { user, isAuthenticated } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
 
   // Mode tabs for Team Tournaments: 'CREATE' | 'JOIN'
@@ -68,6 +70,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(true);
+    toast.info('Copied to Clipboard', `Invite code ${code} copied!`);
     setTimeout(() => setCopiedCode(false), 2500);
   };
 
@@ -81,9 +84,12 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
         type: 'SOLO',
         message: res.message || 'Successfully registered as solo competitor!'
       });
+      toast.success('Registration Confirmed', `You are registered for ${tournament.title}!`);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Solo registration failed.');
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Solo registration failed.';
+      setError(errorMsg);
+      toast.error('Registration Failed', errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -105,9 +111,12 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
         inviteCode: res.team?.inviteCode,
         teamName: res.team?.name
       });
+      toast.success('Team Registered', `Team "${res.team?.name}" created with code: ${res.team?.inviteCode}`);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Team creation failed.');
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Team creation failed.';
+      setError(errorMsg);
+      toast.error('Team Creation Failed', errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -127,9 +136,12 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
         message: res.message,
         teamName: res.team?.name
       });
+      toast.success('Team Joined', `Successfully joined squad "${res.team?.name}"!`);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to join team.');
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to join team.';
+      setError(errorMsg);
+      toast.error('Team Join Failed', errorMsg);
     } finally {
       setIsSubmitting(false);
     }

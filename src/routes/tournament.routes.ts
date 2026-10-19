@@ -1,26 +1,37 @@
 import { Router } from 'express';
 import { TournamentController } from '../controllers/tournament.controller';
+import { DisputeController } from '../controllers/dispute.controller';
 import {
   authenticate,
   authorizeRoles,
   verifyTournamentOwnerOrAdmin
 } from '../middlewares/auth.middleware';
 import { Roles } from '../types';
+import { cacheService } from '../services/cache.service';
+import { validateRequest } from '../middlewares/validate.middleware';
+import {
+  createTournamentSchema,
+  registerSoloSchema,
+  createTeamSchema,
+  joinTeamSchema,
+  updateMatchScoreSchema
+} from '../validators/tournament.validator';
 
 const router = Router();
 
-// Public Tournament Discovery Catalog (filter by gameId, format, status, search)
-router.get('/', TournamentController.getPublicTournaments);
+// Public Tournament Discovery Catalog (filter by gameId, format, status, search with 15s in-memory cache)
+router.get('/', cacheService.middleware(15), TournamentController.getPublicTournaments);
 
-// Retrieve Tournament Details
-router.get('/:id', TournamentController.getTournamentDetails);
-router.get('/:id/details', TournamentController.getTournamentDetails);
+// Retrieve Tournament Details (with 15s in-memory cache)
+router.get('/:id', cacheService.middleware(15), TournamentController.getTournamentDetails);
+router.get('/:id/details', cacheService.middleware(15), TournamentController.getTournamentDetails);
 
 // Create Tournament (Admin & Organizer only)
 router.post(
   '/',
   authenticate,
   authorizeRoles([Roles.ADMIN, Roles.ORGANIZER]),
+  validateRequest(createTournamentSchema),
   TournamentController.createTournament
 );
 
@@ -29,6 +40,7 @@ router.post(
   '/:id/register/solo',
   authenticate,
   authorizeRoles([Roles.PLAYER, Roles.ADMIN, Roles.ORGANIZER]),
+  validateRequest(registerSoloSchema),
   TournamentController.registerSolo
 );
 
@@ -37,6 +49,7 @@ router.post(
   '/:id/teams',
   authenticate,
   authorizeRoles([Roles.PLAYER, Roles.ADMIN, Roles.ORGANIZER]),
+  validateRequest(createTeamSchema),
   TournamentController.createTeam
 );
 
@@ -45,6 +58,7 @@ router.post(
   '/:id/teams/join',
   authenticate,
   authorizeRoles([Roles.PLAYER, Roles.ADMIN, Roles.ORGANIZER]),
+  validateRequest(joinTeamSchema),
   TournamentController.joinTeamWithInviteCode
 );
 
@@ -86,13 +100,57 @@ router.put(
   '/:id/matches/:matchId',
   authenticate,
   authorizeRoles([Roles.ADMIN, Roles.ORGANIZER]),
+  validateRequest(updateMatchScoreSchema),
   TournamentController.updateMatchScore
 );
 
-// Structured Bracket Tree
-router.get('/:id/bracket', TournamentController.getBracket);
+// Structured Bracket Tree (cached for 10s during match spikes)
+router.get('/:id/bracket', cacheService.middleware(10), TournamentController.getBracket);
 
-// Live Recalculated Leaderboard
-router.get('/:id/leaderboard', TournamentController.getLeaderboard);
+// Live Recalculated Leaderboard (cached for 10s during match spikes)
+router.get('/:id/leaderboard', cacheService.middleware(10), TournamentController.getLeaderboard);
+
+// Streaming CSV Export Endpoints (Admin & Organizer)
+// GET /api/tournaments/:id/export/participants
+router.get(
+  '/:id/export/participants',
+  authenticate,
+  authorizeRoles([Roles.ADMIN, Roles.ORGANIZER]),
+  verifyTournamentOwnerOrAdmin,
+  TournamentController.exportParticipants
+);
+
+// GET /api/tournaments/:id/export/teams
+router.get(
+  '/:id/export/teams',
+  authenticate,
+  authorizeRoles([Roles.ADMIN, Roles.ORGANIZER]),
+  verifyTournamentOwnerOrAdmin,
+  TournamentController.exportTeams
+);
+
+// GET /api/tournaments/:id/export/scores
+router.get(
+  '/:id/export/scores',
+  authenticate,
+  authorizeRoles([Roles.ADMIN, Roles.ORGANIZER]),
+  verifyTournamentOwnerOrAdmin,
+  TournamentController.exportScores
+);
+
+// Tournament Disputes Engine
+// POST /api/tournaments/:id/disputes - Player raises a dispute
+router.post(
+  '/:id/disputes',
+  authenticate,
+  DisputeController.createDispute
+);
+
+// GET /api/tournaments/:id/disputes - Retrieve all disputes scoped to this tournament
+router.get(
+  '/:id/disputes',
+  authenticate,
+  DisputeController.getTournamentDisputes
+);
 
 export default router;

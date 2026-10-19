@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { tournamentService } from '../api/tournament.service';
+import { DisputeAPI, DisputeItem } from '../api/dispute.service';
 import { PlayerRegistration, Tournament } from '../types';
 import { RegistrationModal } from '../components/RegistrationModal';
+import { RaiseDisputeModal } from '../components/RaiseDisputeModal';
 import {
   Trophy,
   Shield,
@@ -20,29 +22,39 @@ import {
   LogOut,
   AlertTriangle,
   Clock,
-  Swords
+  Swords,
+  ShieldAlert,
+  ExternalLink,
+  MessageSquare
 } from 'lucide-react';
 
 export const PlayerDashboard: React.FC = () => {
   const { user } = useAuth();
   const [registrations, setRegistrations] = useState<PlayerRegistration[]>([]);
   const [openTournaments, setOpenTournaments] = useState<Tournament[]>([]);
+  const [disputes, setDisputes] = useState<DisputeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
-  // Tab: 'MY_TOURNAMENTS' | 'BROWSE' | 'HISTORY'
-  const [activeTab, setActiveTab] = useState<'MY_TOURNAMENTS' | 'BROWSE' | 'HISTORY'>('MY_TOURNAMENTS');
+  // Dispute Modal State
+  const [disputeModalOpen, setDisputeModalOpen] = useState(false);
+  const [disputeTarget, setDisputeTarget] = useState<{ id: string; title: string } | null>(null);
+
+  // Tab: 'MY_TOURNAMENTS' | 'BROWSE' | 'DISPUTES' | 'HISTORY'
+  const [activeTab, setActiveTab] = useState<'MY_TOURNAMENTS' | 'BROWSE' | 'DISPUTES' | 'HISTORY'>('MY_TOURNAMENTS');
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [regs, openList] = await Promise.all([
+      const [regs, openList, dispData] = await Promise.all([
         tournamentService.getPlayerRegistrations().catch(() => []),
-        tournamentService.getPublicTournaments({ status: 'REGISTRATION_OPEN' }).catch(() => [])
+        tournamentService.getPublicTournaments({ status: 'REGISTRATION_OPEN' }).catch(() => []),
+        DisputeAPI.getAllDisputes().catch(() => ({ disputes: [] }))
       ]);
       setRegistrations(regs || []);
       setOpenTournaments(openList || []);
+      setDisputes(dispData.disputes || []);
     } catch (err) {
       console.error('Failed to load player match hub data:', err);
     } finally {
@@ -159,6 +171,18 @@ export const PlayerDashboard: React.FC = () => {
           <span>Browse Open Cups ({openTournaments.length})</span>
         </button>
 
+        <button
+          onClick={() => setActiveTab('DISPUTES')}
+          className={`px-4 py-2 rounded-xl text-xs font-heading font-bold flex items-center space-x-2 transition-all ${
+            activeTab === 'DISPUTES'
+              ? 'bg-gradient-to-r from-purple-600 to-indigo-500 text-white shadow-lg shadow-purple-600/30'
+              : 'text-slate-400 hover:text-white bg-slate-800/40'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4" />
+          <span>Disputes Filed ({disputes.length})</span>
+        </button>
+
         <Link
           to="/tournaments"
           className="ml-auto text-xs font-mono text-cyan-400 hover:underline flex items-center gap-1"
@@ -248,6 +272,19 @@ export const PlayerDashboard: React.FC = () => {
                         >
                           View Details &rarr;
                         </Link>
+
+                        {/* Raise Dispute Button */}
+                        <button
+                          onClick={() => {
+                            setDisputeTarget({ id: t.id, title: t.title });
+                            setDisputeModalOpen(true);
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 text-xs font-heading font-bold flex items-center space-x-1.5 transition-colors"
+                          title="Report Cheating, Score Issue, or Rule Violation"
+                        >
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                          <span>Raise Dispute</span>
+                        </button>
 
                         {canWithdraw && (
                           <button
@@ -433,6 +470,135 @@ export const PlayerDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* TAB 3: DISPUTES FILED */}
+      {activeTab === 'DISPUTES' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-heading font-bold text-white flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-purple-400" />
+                Match Grievance & Dispute Tickets
+              </h2>
+              <p className="text-xs text-slate-400">
+                Official review requests submitted for match integrity, cheating reports, or score verification.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (registrations.length > 0) {
+                  setDisputeTarget({
+                    id: registrations[0].tournament.id,
+                    title: registrations[0].tournament.title
+                  });
+                  setDisputeModalOpen(true);
+                } else {
+                  alert('You must be registered in at least one tournament to file a dispute.');
+                }
+              }}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-heading font-bold flex items-center space-x-2 transition-all shadow-lg shadow-purple-600/30"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              <span>Raise New Dispute</span>
+            </button>
+          </div>
+
+          {disputes.length === 0 ? (
+            <div className="gaming-card rounded-2xl border border-slate-800 p-12 text-center space-y-4">
+              <ShieldAlert className="w-12 h-12 text-slate-600 mx-auto" />
+              <h3 className="font-heading font-bold text-lg text-white">No Disputes Filed</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                All your matches are currently running smoothly without pending disputes or ticket submissions.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {disputes.map((dispute) => {
+                const getStatusPill = (status: string) => {
+                  switch (status) {
+                    case 'OPEN':
+                      return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+                    case 'INVESTIGATING':
+                      return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+                    case 'RESOLVED':
+                      return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                    case 'DISMISSED':
+                      return 'bg-slate-500/10 text-slate-400 border-slate-500/30';
+                    default:
+                      return 'bg-purple-500/10 text-purple-400 border-purple-500/30';
+                  }
+                };
+
+                return (
+                  <div
+                    key={dispute.id}
+                    className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-purple-500/30 space-y-4 transition-all"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                      <div className="flex items-center space-x-3">
+                        <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full border uppercase font-bold ${getStatusPill(dispute.status)}`}>
+                          {dispute.status}
+                        </span>
+                        <span className="text-xs font-mono text-purple-400 uppercase font-semibold">
+                          Reason: {dispute.reason.replace(/_/g, ' ')}
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-500">
+                          {new Date(dispute.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      {dispute.tournament && (
+                        <span className="text-xs font-heading font-bold text-slate-300">
+                          {dispute.tournament.title} {dispute.match ? `• Match #${dispute.match.matchNumber}` : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {dispute.description}
+                      </p>
+
+                      {dispute.proofUrl && (
+                        <div className="flex items-center space-x-2 text-xs text-cyan-400">
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <a
+                            href={dispute.proofUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline font-mono"
+                          >
+                            View Submitted Proof Evidence
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Resolution Note if resolved or investigating */}
+                    {dispute.resolutionNote && (
+                      <div className="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700/60 space-y-1 text-xs">
+                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                          <span className="font-semibold text-purple-300 flex items-center gap-1.5">
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Official Resolution Verdict
+                          </span>
+                          {dispute.resolvedBy && (
+                            <span className="font-mono">
+                              By: {dispute.resolvedBy.username}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-slate-300 italic">
+                          "{dispute.resolutionNote}"
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Registration Modal Popup */}
       {selectedTournament && (
         <RegistrationModal
@@ -440,6 +606,22 @@ export const PlayerDashboard: React.FC = () => {
           onClose={() => setSelectedTournament(null)}
           tournament={selectedTournament}
           onSuccess={() => {
+            loadData();
+          }}
+        />
+      )}
+
+      {/* Raise Dispute Modal */}
+      {disputeTarget && (
+        <RaiseDisputeModal
+          isOpen={disputeModalOpen}
+          onClose={() => {
+            setDisputeModalOpen(false);
+            setDisputeTarget(null);
+          }}
+          tournamentId={disputeTarget.id}
+          tournamentTitle={disputeTarget.title}
+          onDisputeSubmitted={() => {
             loadData();
           }}
         />

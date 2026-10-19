@@ -6,6 +6,7 @@ import {
   verifyTournamentOwnerOrAdmin
 } from '../middlewares/auth.middleware';
 import { Roles } from '../types';
+import { cacheService } from '../services/cache.service';
 
 const router = Router();
 
@@ -22,8 +23,13 @@ router.get('/tournaments', TournamentController.getOrganizerTournaments);
 router.put('/tournaments/:id', verifyTournamentOwnerOrAdmin, TournamentController.updateTournament);
 router.delete('/tournaments/:id', verifyTournamentOwnerOrAdmin, TournamentController.deleteTournament);
 
-// Dedicated Tournament Database Viewer
-router.get('/tournaments/:id/database', verifyTournamentOwnerOrAdmin, TournamentController.getTournamentDatabase);
+// Dedicated Tournament Database Viewer (cached for 10s)
+router.get(
+  '/tournaments/:id/database',
+  verifyTournamentOwnerOrAdmin,
+  cacheService.middleware(10),
+  TournamentController.getTournamentDatabase
+);
 
 // Scores & Results Submission
 router.post('/tournaments/:id/scores', verifyTournamentOwnerOrAdmin, TournamentController.submitScores);
@@ -37,5 +43,10 @@ router.patch(
   verifyTournamentOwnerOrAdmin,
   TournamentController.disqualifyParticipant
 );
+
+// Streaming Sub-Database Exports
+router.get('/tournaments/:id/export/participants', verifyTournamentOwnerOrAdmin, TournamentController.exportParticipants);
+router.get('/tournaments/:id/export/teams', verifyTournamentOwnerOrAdmin, TournamentController.exportTeams);
+router.get('/tournaments/:id/export/scores', verifyTournamentOwnerOrAdmin, TournamentController.exportScores);
 
 export default router;

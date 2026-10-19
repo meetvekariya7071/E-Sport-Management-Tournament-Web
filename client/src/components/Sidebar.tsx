@@ -9,7 +9,9 @@ import {
   Shield,
   PlusCircle,
   FileText,
-  UserCheck
+  UserCheck,
+  AlertTriangle,
+  ClipboardList
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -22,13 +24,20 @@ export const Sidebar: React.FC = () => {
           { to: '/admin', label: 'System Overview', icon: LayoutDashboard },
           { to: '/admin#users', label: 'User & Staff Moderation', icon: Users },
           { to: '/admin#games', label: 'Game Master Catalog', icon: Gamepad2 },
-          { to: '/admin#tournaments', label: 'All Platform Tournaments', icon: Trophy }
+          { to: '/admin#tournaments', label: 'All Platform Tournaments', icon: Trophy },
+          { to: '/admin#audit', label: 'Platform Audit Logs', icon: FileText },
+          { to: '/organizer/disputes', label: 'Disputes Review Board', icon: AlertTriangle }
         ];
       case 'ORGANIZER':
         return [
           { to: '/organizer', label: 'Hosted Tournaments', icon: Trophy },
           { to: '/organizer#create', label: 'Create Tournament', icon: PlusCircle },
-          { to: '/organizer#rules', label: 'Rule Books & Formats', icon: FileText }
+          { to: '/organizer/disputes', label: 'Dispute Review Board', icon: AlertTriangle }
+        ];
+      case 'REFEREE':
+        return [
+          { to: '/referee/dashboard', label: 'Referee Portal', icon: ClipboardList },
+          { to: '/referee/disputes', label: 'Dispute Review Board', icon: AlertTriangle }
         ];
       case 'PLAYER':
       default:

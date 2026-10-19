@@ -32,6 +32,7 @@ export type TournamentStatus = (typeof TournamentStatuses)[keyof typeof Tourname
 export const ParticipantStatuses = {
   REGISTERED: 'REGISTERED',
   CHECKED_IN: 'CHECKED_IN',
+  NO_SHOW: 'NO_SHOW',
   DISQUALIFIED: 'DISQUALIFIED',
   ELIMINATED: 'ELIMINATED'
 } as const;
@@ -47,6 +48,26 @@ export const MatchStatuses = {
 } as const;
 
 export type MatchStatus = (typeof MatchStatuses)[keyof typeof MatchStatuses];
+
+export const DisputeStatuses = {
+  OPEN: 'OPEN',
+  INVESTIGATING: 'INVESTIGATING',
+  RESOLVED: 'RESOLVED',
+  DISMISSED: 'DISMISSED'
+} as const;
+
+export type DisputeStatus = (typeof DisputeStatuses)[keyof typeof DisputeStatuses];
+
+export const NotificationTypes = {
+  INVITE: 'INVITE',
+  MATCH_START: 'MATCH_START',
+  SCORE_UPDATE: 'SCORE_UPDATE',
+  BAN: 'BAN',
+  DISPUTE_UPDATE: 'DISPUTE_UPDATE',
+  GENERAL: 'GENERAL'
+} as const;
+
+export type NotificationType = (typeof NotificationTypes)[keyof typeof NotificationTypes];
 
 // =========================================================================
 // AUTH & CONTEXT INTERFACES

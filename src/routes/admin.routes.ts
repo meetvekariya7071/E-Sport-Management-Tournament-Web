@@ -12,6 +12,9 @@ router.use(authenticate, authorizeRoles([Roles.ADMIN]));
 router.get('/kpis', AdminController.getKPISummary);
 router.get('/overview', AdminController.getAdminOverview);
 
+// Platform Audit Trail (Admin View Only)
+router.get('/audit-logs', AdminController.getAuditLogs);
+
 // System Database Tables with Pagination, Search, and Sorting
 router.get('/tables/:table', AdminController.getTableData);
 
