@@ -139,6 +139,11 @@ export const verifyTournamentOwnerOrAdmin = async (
       return next();
     }
 
+    // Referees have read-only access to inspect tournament sub-databases
+    if (user.role === Roles.REFEREE && req.method === 'GET') {
+      return next();
+    }
+
     const tournamentId = req.params.tournamentId || req.params.id;
     if (!tournamentId) {
       res.status(400).json({

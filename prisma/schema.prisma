@@ -36,6 +36,7 @@ model User {
   resolvedDisputes     Dispute[]               @relation("ResolvedDisputes")
   notifications        Notification[]
   auditLogs            AuditLog[]              @relation("UserAuditLogs")
+  disputesAccused      Dispute[]               @relation("AccusedPlayerDisputes")
 
   @@index([role, isBanned])
   @@map("users")
@@ -84,11 +85,13 @@ model Tournament {
   status          String            @default("DRAFT") // "DRAFT" | "REGISTRATION_OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
   maxParticipants Int               @map("max_participants")
   currentCount    Int               @default(0) @map("current_count")
-  rules           String?           @default("{}")
-  startDate       DateTime          @map("start_date")
-  endDate         DateTime?         @map("end_date")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  rules                 String?           @default("{}")
+  registrationStartDate DateTime          @default(now()) @map("registration_start_date")
+  registrationEndDate   DateTime          @default(now()) @map("registration_end_date")
+  startDate             DateTime          @map("start_date")
+  endDate               DateTime?         @map("end_date")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
 
   // Scoped Relations
   game            Game                   @relation(fields: [gameId], references: [id], onDelete: Restrict)
@@ -152,16 +155,23 @@ model TeamMember {
 // When format is DUO/SQUAD: teamId points to the Team record.
 // =========================================================================
 model TournamentParticipant {
-  id               String        @id @default(uuid())
-  tournamentId     String        @map("tournament_id")
-  userId           String        @map("user_id")
-  teamId           String?       @map("team_id")
-  inGameName       String?       @map("in_game_name")
-  status           String        @default("REGISTERED") // "REGISTERED" | "CHECKED_IN" | "NO_SHOW" | "DISQUALIFIED" | "ELIMINATED"
-  seed             Int?
-  disqualifiedBy   String?       @map("disqualified_by")
-  disqualifyReason String?       @map("disqualify_reason")
-  registeredAt     DateTime      @default(now()) @map("registered_at")
+  id                   String        @id @default(uuid())
+  tournamentId         String        @map("tournament_id")
+  userId               String        @map("user_id")
+  teamId               String?       @map("team_id")
+  inGameName           String?       @map("in_game_name")
+  status               String        @default("REGISTERED") // "REGISTERED" | "CHECKED_IN" | "LATE" | "NO_SHOW" | "DISQUALIFIED" | "ELIMINATED"
+  isSubstituteApproved Boolean       @default(false) @map("is_substitute_approved")
+  checkinNote          String?       @map("checkin_note")
+  seed                 Int?
+  disqualifiedBy       String?       @map("disqualified_by")
+  disqualifyReason     String?       @map("disqualify_reason")
+  warningsCount        Int           @default(0) @map("warnings_count")
+  warningNotes         String?       @map("warning_notes")
+  isMatchDisqualified  Boolean       @default(false) @map("is_match_disqualified")
+  isEscalatedToAdmin   Boolean       @default(false) @map("is_escalated_to_admin")
+  escalationReason     String?       @map("escalation_reason")
+  registeredAt         DateTime      @default(now()) @map("registered_at")
 
   tournament       Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -199,10 +209,13 @@ model Match {
   refereeId           String?       @map("referee_id")
   winnerParticipantId String?       @map("winner_participant_id")
   nextMatchId         String?       @map("next_match_id")
-  status              String        @default("PENDING") // "PENDING" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "DISPUTED"
+  status              String        @default("PENDING") // "PENDING" | "SCHEDULED" | "AWAITING_CHECKIN" | "IN_PROGRESS" | "COMPLETED" | "DISPUTED"
+  roomToken           String?       @map("room_token")
+  lobbyCredentials    String?       @map("lobby_credentials")
   isVerified          Boolean       @default(false) @map("is_verified")
   verifiedAt          DateTime?     @map("verified_at")
   verifiedById        String?       @map("verified_by_id")
+  refereeNote         String?       @map("referee_note")
   scheduledAt         DateTime?     @map("scheduled_at")
   completedAt         DateTime?     @map("completed_at")
   createdAt           DateTime      @default(now()) @map("created_at")
@@ -251,21 +264,25 @@ model Dispute {
   id             String      @id @default(uuid())
   tournamentId   String      @map("tournament_id")
   matchId        String?     @map("match_id")
-  raisedById     String      @map("raised_by_id")
-  reason         String      // "CHEATING" | "INCORRECT_SCORE" | "TOXIC_CONDUCT" | "RULE_VIOLATION" | "OTHER"
-  description    String
-  proofUrl       String?     @map("proof_url")
-  status         String      @default("OPEN") // "OPEN" | "INVESTIGATING" | "RESOLVED" | "DISMISSED"
-  resolutionNote String?     @map("resolution_note")
-  resolvedById   String?     @map("resolved_by_id")
-  resolvedAt     DateTime?   @map("resolved_at")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  raisedById           String      @map("raised_by_id")
+  accusedParticipantId String?     @map("accused_participant_id")
+  accusedUserId        String?     @map("accused_user_id")
+  reason               String      // "CHEATING" | "INCORRECT_SCORE" | "TOXIC_CONDUCT" | "RULE_VIOLATION" | "OTHER"
+  description          String
+  proofUrl             String?     @map("proof_url")
+  status               String      @default("OPEN") // "OPEN" | "INVESTIGATING" | "RESOLVED" | "DISMISSED"
+  actionTaken          String?     @map("action_taken") // "UPHELD" | "DISMISSED" | "FORFEIT_AWARDED" | "POINTS_DOCKED"
+  resolutionNote       String?     @map("resolution_note")
+  resolvedById         String?     @map("resolved_by_id")
+  resolvedAt           DateTime?   @map("resolved_at")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
 
   tournament     Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   match          Match?      @relation(fields: [matchId], references: [id], onDelete: SetNull)
   raisedBy       User        @relation("PlayerDisputes", fields: [raisedById], references: [id], onDelete: Cascade)
   resolvedBy     User?       @relation("ResolvedDisputes", fields: [resolvedById], references: [id], onDelete: SetNull)
+  accusedUser    User?       @relation("AccusedPlayerDisputes", fields: [accusedUserId], references: [id], onDelete: SetNull)
 
   @@index([tournamentId, status])
   @@index([raisedById])

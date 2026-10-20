@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { TournamentController } from '../controllers/tournament.controller';
 import { DisputeController } from '../controllers/dispute.controller';
+import { RefereeController } from '../controllers/referee.controller';
 import {
   authenticate,
   authorizeRoles,
@@ -25,6 +26,15 @@ router.get('/', cacheService.middleware(15), TournamentController.getPublicTourn
 // Retrieve Tournament Details (with 15s in-memory cache)
 router.get('/:id', cacheService.middleware(15), TournamentController.getTournamentDetails);
 router.get('/:id/details', cacheService.middleware(15), TournamentController.getTournamentDetails);
+
+// Assign Referee to Tournament or Specific Match (Admin & Organizer only)
+router.post(
+  '/:id/assign-referee',
+  authenticate,
+  authorizeRoles([Roles.ADMIN, Roles.ORGANIZER]),
+  verifyTournamentOwnerOrAdmin,
+  RefereeController.assignReferee
+);
 
 // Create Tournament (Admin & Organizer only)
 router.post(

@@ -36,6 +36,8 @@ export const TournamentCreatorModal: React.FC<TournamentCreatorModalProps> = ({
   const [gameId, setGameId] = useState('');
   const [bannerImage, setBannerImage] = useState('');
   const [description, setDescription] = useState('');
+  const [registrationStartDate, setRegistrationStartDate] = useState('');
+  const [registrationEndDate, setRegistrationEndDate] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -71,10 +73,36 @@ export const TournamentCreatorModal: React.FC<TournamentCreatorModalProps> = ({
   const handleNext = () => {
     setError(null);
     if (step === 1) {
-      if (!title || !slug || !gameId || !startDate) {
-        setError('Please complete all required fields in General Info.');
+      if (!title || !slug || !gameId || !registrationStartDate || !registrationEndDate || !startDate || !endDate) {
+        setError('Please complete all compulsory fields in General Info (including all registration & tournament dates).');
         return;
       }
+
+      const regStart = new Date(registrationStartDate).getTime();
+      const regEnd = new Date(registrationEndDate).getTime();
+      const start = new Date(startDate).getTime();
+      const end = new Date(endDate).getTime();
+
+      if (isNaN(regStart) || isNaN(regEnd) || isNaN(start) || isNaN(end)) {
+        setError('Please enter valid dates and times for all schedule fields.');
+        return;
+      }
+
+      if (regStart >= regEnd) {
+        setError('Chronological Error: Registration Start Date must be strictly earlier than Registration End Date.');
+        return;
+      }
+
+      if (regEnd > start) {
+        setError('Chronological Error: Registration End Date must be on or before Tournament Start Date.');
+        return;
+      }
+
+      if (start >= end) {
+        setError('Chronological Error: Tournament Start Date must be strictly earlier than Tournament End Date.');
+        return;
+      }
+
       setStep(2);
     } else if (step === 2) {
       if (selectedGame && !selectedGame.isTeamBased && (format === 'DUO' || format === 'SQUAD')) {
@@ -101,6 +129,8 @@ export const TournamentCreatorModal: React.FC<TournamentCreatorModalProps> = ({
         gameId,
         format,
         maxParticipants: Number(maxParticipants),
+        registrationStartDate,
+        registrationEndDate,
         startDate,
         endDate: endDate ? endDate : undefined
       });
@@ -116,9 +146,9 @@ export const TournamentCreatorModal: React.FC<TournamentCreatorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-2xl rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-6 sm:p-8 text-slate-100 gaming-card overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl text-slate-100 gaming-card overflow-hidden">
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800 p-6 pb-4 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3 text-cyan-400">
             <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
               <Trophy className="w-5 h-5" />
@@ -134,56 +164,58 @@ export const TournamentCreatorModal: React.FC<TournamentCreatorModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Step Progress Indicators */}
-        <div className="grid grid-cols-3 gap-2 mb-6 text-xs font-heading font-bold uppercase tracking-wider">
-          <div
-            className={`p-2 rounded-xl text-center border transition-all ${
-              step === 1
-                ? 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-glow-cyan'
-                : step > 1
-                ? 'bg-slate-800/80 border-emerald-500/40 text-emerald-400'
-                : 'bg-slate-900/60 border-slate-800 text-slate-500'
-            }`}
-          >
-            1. General Info
-          </div>
-          <div
-            className={`p-2 rounded-xl text-center border transition-all ${
-              step === 2
-                ? 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-glow-cyan'
-                : step > 2
-                ? 'bg-slate-800/80 border-emerald-500/40 text-emerald-400'
-                : 'bg-slate-900/60 border-slate-800 text-slate-500'
-            }`}
-          >
-            2. Format & Bounds
-          </div>
-          <div
-            className={`p-2 rounded-xl text-center border transition-all ${
-              step === 3
-                ? 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-glow-cyan'
-                : 'bg-slate-900/60 border-slate-800 text-slate-500'
-            }`}
-          >
-            3. Prize & Structure
-          </div>
-        </div>
+        {/* Scrollable Form Body */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-700">
+            {/* Step Progress Indicators */}
+            <div className="grid grid-cols-3 gap-2 mb-2 text-xs font-heading font-bold uppercase tracking-wider shrink-0">
+              <div
+                className={`p-2 rounded-xl text-center border transition-all ${
+                  step === 1
+                    ? 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-glow-cyan'
+                    : step > 1
+                    ? 'bg-slate-800/80 border-emerald-500/40 text-emerald-400'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-500'
+                }`}
+              >
+                1. General Info
+              </div>
+              <div
+                className={`p-2 rounded-xl text-center border transition-all ${
+                  step === 2
+                    ? 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-glow-cyan'
+                    : step > 2
+                    ? 'bg-slate-800/80 border-emerald-500/40 text-emerald-400'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-500'
+                }`}
+              >
+                2. Format & Bounds
+              </div>
+              <div
+                className={`p-2 rounded-xl text-center border transition-all ${
+                  step === 3
+                    ? 'bg-cyan-500/10 border-cyan-400 text-cyan-400 shadow-glow-cyan'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-500'
+                }`}
+              >
+                3. Prize & Structure
+              </div>
+            </div>
 
-        {error && (
-          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300 flex items-center space-x-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+            {error && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300 flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* STEP 1: GENERAL INFO */}
+            {/* STEP 1: GENERAL INFO */}
           {step === 1 && (
             <div className="space-y-4 animate-fadeIn">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -249,30 +281,67 @@ export const TournamentCreatorModal: React.FC<TournamentCreatorModalProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Tournament Start Date *
-                  </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  />
+              {/* Schedule Matrix: 4 Datetime Pickers */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3">
+                <div className="flex items-center space-x-2 text-cyan-400">
+                  <Calendar className="w-4 h-4 shrink-0" />
+                  <span className="text-xs font-heading font-bold uppercase tracking-wider">Tournament & Registration Timeline</span>
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Registration Start Date * <span className="text-[10px] text-cyan-400">(compulsory)</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={registrationStartDate}
+                      onChange={(e) => setRegistrationStartDate(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Tournament End Date (Optional)
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
-                  />
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Registration End Date * <span className="text-[10px] text-cyan-400">(compulsory)</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={registrationEndDate}
+                      onChange={(e) => setRegistrationEndDate(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Tournament Start Date * <span className="text-[10px] text-cyan-400">(compulsory)</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Tournament End Date * <span className="text-[10px] text-cyan-400">(compulsory)</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+                </div>
+                <div className="text-[11px] text-slate-400 font-mono flex items-center justify-between px-1">
+                  <span>Chronology Rule: Reg Start &lt; Reg End &le; Tourney Start &lt; Tourney End</span>
                 </div>
               </div>
 
@@ -402,27 +471,34 @@ export const TournamentCreatorModal: React.FC<TournamentCreatorModalProps> = ({
               </div>
             </div>
           )}
+          </div>
 
-          {/* Navigation Controls */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+          {/* Sticky Bottom Navigation Controls */}
+          <div className="sticky bottom-0 z-10 bg-slate-900 border-t border-slate-800 p-4 sm:px-6 flex items-center justify-between shrink-0">
             {step > 1 ? (
               <button
                 type="button"
                 onClick={() => setStep((s) => (s - 1) as any)}
-                className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center space-x-1"
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center space-x-1 transition-colors"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back</span>
               </button>
             ) : (
-              <div></div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
             )}
 
             {step < 3 ? (
               <button
                 type="button"
                 onClick={handleNext}
-                className="px-5 py-2 text-xs font-heading font-bold rounded-xl bg-cyan-400 hover:bg-cyan-300 text-black shadow-glow-cyan flex items-center space-x-1"
+                className="px-5 py-2 text-xs font-heading font-bold rounded-xl bg-cyan-400 hover:bg-cyan-300 text-black shadow-glow-cyan flex items-center space-x-1 transition-all"
               >
                 <span>Continue</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -431,7 +507,7 @@ export const TournamentCreatorModal: React.FC<TournamentCreatorModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2.5 text-xs font-heading font-bold rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-black shadow-glow-cyan flex items-center space-x-1.5 transition-all"
+                className="px-6 py-2.5 text-xs font-heading font-bold rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-black shadow-glow-cyan flex items-center space-x-1.5 transition-all disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
                 <span>{isSubmitting ? 'Deploying...' : 'Launch Tournament'}</span>
@@ -443,3 +519,5 @@ export const TournamentCreatorModal: React.FC<TournamentCreatorModalProps> = ({
     </div>
   );
 };
+
+export const TournamentCreationModal = TournamentCreatorModal;

@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import api from '../api/axios';
 import { adminService, KPISummary } from '../api/admin.service';
-import { AuditAPI } from '../api/audit.service';
 import { BanModal } from '../components/BanModal';
 import { GameModal } from '../components/GameModal';
 import { TournamentInspectorModal } from '../components/TournamentInspectorModal';
@@ -22,26 +20,15 @@ import {
   ChevronRight,
   Eye,
   ArrowUpDown,
-  FileText,
-  Activity,
-  Server,
-  Database,
-  Wifi,
-  Cpu,
-  RefreshCw,
-  Zap
+  RefreshCw
 } from 'lucide-react';
 
-type DatabaseTab = 'players' | 'organizers' | 'referees' | 'games' | 'tournaments' | 'audit';
+type DatabaseTab = 'players' | 'organizers' | 'referees' | 'games' | 'tournaments';
 
 export const AdminDashboard: React.FC = () => {
   // KPI Summary
   const [kpis, setKpis] = useState<KPISummary | null>(null);
   const [kpiLoading, setKpiLoading] = useState(true);
-
-  // Live System Health Metrics State
-  const [healthData, setHealthData] = useState<any>(null);
-  const [healthLoading, setHealthLoading] = useState(true);
 
   // Active Tab & Table State
   const [activeTab, setActiveTab] = useState<DatabaseTab>('players');
@@ -62,30 +49,6 @@ export const AdminDashboard: React.FC = () => {
   });
   const [inspectTournamentId, setInspectTournamentId] = useState<string | null>(null);
 
-  // Load System Health Metrics
-  const loadHealth = async () => {
-    try {
-      setHealthLoading(true);
-      const res = await api.get('/health');
-      setHealthData(res.data);
-    } catch (err) {
-      console.error('Failed to load system health metrics', err);
-    } finally {
-      setHealthLoading(false);
-    }
-  };
-
-  // Check URL hash for direct tab navigation & periodic health polling
-  useEffect(() => {
-    if (window.location.hash === '#audit') {
-      setActiveTab('audit');
-    }
-
-    loadHealth();
-    const interval = setInterval(loadHealth, 15000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Load KPIs
   const loadKpis = async () => {
     try {
@@ -104,18 +67,6 @@ export const AdminDashboard: React.FC = () => {
     try {
       setTableLoading(true);
 
-      if (activeTab === 'audit') {
-        const res = await AuditAPI.getAuditLogs({
-          page,
-          limit: 10,
-          search
-        });
-        setTableData(res.items || []);
-        setTotalPages(res.totalPages || 1);
-        setTotalCount(res.total || 0);
-        return;
-      }
-
       const res = await adminService.getTableData(activeTab, {
         page,
         limit: 8,
@@ -123,11 +74,16 @@ export const AdminDashboard: React.FC = () => {
         sortBy: sortBy || undefined,
         sortOrder
       });
-      setTableData(res.data);
-      setTotalPages(res.pagination.totalPages || 1);
-      setTotalCount(res.pagination.total || 0);
+      const rawData = res?.data as any;
+      const dataItems = Array.isArray(rawData)
+        ? rawData
+        : (rawData?.games || rawData?.tournaments || rawData?.players || rawData?.data || []);
+      setTableData(dataItems || []);
+      setTotalPages(res?.pagination?.totalPages || 1);
+      setTotalCount(res?.pagination?.total ?? (dataItems ? dataItems.length : 0));
     } catch (err) {
       console.error('Failed to load table:', err);
+      setTableData([]);
     } finally {
       setTableLoading(false);
     }
@@ -192,97 +148,16 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         <button
-          onClick={loadHealth}
-          disabled={healthLoading}
+          onClick={() => {
+            loadKpis();
+            loadTable();
+          }}
+          disabled={kpiLoading}
           className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs font-mono text-slate-300 hover:text-white flex items-center space-x-2 transition-all shrink-0"
         >
-          <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${healthLoading ? 'animate-spin' : ''}`} />
-          <span>Refresh Telemetry</span>
+          <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${kpiLoading ? 'animate-spin' : ''}`} />
+          <span>Refresh Data</span>
         </button>
-      </div>
-
-      {/* Production Health & System Telemetry Widget */}
-      <div className="gaming-card p-6 rounded-3xl border border-emerald-500/30 bg-gradient-to-r from-slate-900 via-slate-950 to-emerald-950/20 shadow-2xl relative overflow-hidden space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <Activity className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="font-heading font-bold text-sm text-white flex items-center gap-2">
-                Production Health & Live Telemetry
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              </h3>
-              <p className="text-[11px] text-slate-400 font-mono">
-                Real-time API ping, database latency, socket channels, and cache metrics
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono font-bold uppercase tracking-wider">
-              {healthData?.status === 'online' ? 'All Systems Operational' : 'Degraded Performance'}
-            </span>
-            <span className="text-[11px] font-mono text-slate-500">
-              Uptime: <strong className="text-slate-300">{healthData?.uptime?.formatted || 'Just started'}</strong>
-            </span>
-          </div>
-        </div>
-
-        {/* Live Metrics Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Metric 1: Database Latency */}
-          <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1">
-            <div className="flex items-center justify-between text-slate-400 text-xs">
-              <span className="font-mono text-[10px] uppercase">Database Ping</span>
-              <Database className="w-4 h-4 text-cyan-400" />
-            </div>
-            <div className="text-xl font-heading font-extrabold text-white font-mono flex items-baseline gap-1">
-              <span>{healthData?.database?.latencyMs ?? 1}</span>
-              <span className="text-xs font-normal text-slate-400">ms latency</span>
-            </div>
-            <span className="text-[10px] text-emerald-400 font-mono">SQLite (Prisma ORM) Healthy</span>
-          </div>
-
-          {/* Metric 2: WebSockets */}
-          <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1">
-            <div className="flex items-center justify-between text-slate-400 text-xs">
-              <span className="font-mono text-[10px] uppercase">Active WebSockets</span>
-              <Wifi className="w-4 h-4 text-emerald-400" />
-            </div>
-            <div className="text-xl font-heading font-extrabold text-white font-mono flex items-baseline gap-1">
-              <span>{healthData?.websocket?.activeConnections ?? 0}</span>
-              <span className="text-xs font-normal text-slate-400">active channels</span>
-            </div>
-            <span className="text-[10px] text-cyan-400 font-mono">Socket.io Engine Online</span>
-          </div>
-
-          {/* Metric 3: Cache Performance */}
-          <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1">
-            <div className="flex items-center justify-between text-slate-400 text-xs">
-              <span className="font-mono text-[10px] uppercase">In-Memory Cache</span>
-              <Zap className="w-4 h-4 text-amber-400" />
-            </div>
-            <div className="text-xl font-heading font-extrabold text-white font-mono flex items-baseline gap-1">
-              <span>{healthData?.cache?.hits ?? 0}</span>
-              <span className="text-xs font-normal text-slate-400">hits ({healthData?.cache?.misses ?? 0} misses)</span>
-            </div>
-            <span className="text-[10px] text-amber-400 font-mono">{healthData?.cache?.activeKeys ?? 0} keys cached</span>
-          </div>
-
-          {/* Metric 4: System Memory */}
-          <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1">
-            <div className="flex items-center justify-between text-slate-400 text-xs">
-              <span className="font-mono text-[10px] uppercase">Process Memory</span>
-              <Cpu className="w-4 h-4 text-purple-400" />
-            </div>
-            <div className="text-xl font-heading font-extrabold text-white font-mono flex items-baseline gap-1">
-              <span>{healthData?.memory?.rss || '108 MB'}</span>
-              <span className="text-xs font-normal text-slate-400">RSS</span>
-            </div>
-            <span className="text-[10px] text-purple-400 font-mono">Heap: {healthData?.memory?.heapUsed || '22 MB'}</span>
-          </div>
-        </div>
       </div>
 
       {/* KPI Cards (Matches BWP_pro admin header mockup) */}
@@ -369,14 +244,18 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Tab Headers matching BWP_pro mockup exactly */}
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
-          {(['players', 'organizers', 'referees', 'games', 'tournaments', 'audit'] as DatabaseTab[]).map(
+          {(['players', 'organizers', 'referees', 'games', 'tournaments'] as DatabaseTab[]).map(
             (tab) => (
               <button
                 key={tab}
                 onClick={() => {
-                  setActiveTab(tab);
-                  setSearch('');
-                  setSortBy('');
+                  if (activeTab !== tab) {
+                    setActiveTab(tab);
+                    setTableData([]);
+                    setTableLoading(true);
+                    setSearch('');
+                    setSortBy('');
+                  }
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-heading font-bold uppercase tracking-wider transition-all flex items-center space-x-2 ${
                   activeTab === tab
@@ -389,8 +268,7 @@ export const AdminDashboard: React.FC = () => {
                 {tab === 'referees' && <Shield className="w-3.5 h-3.5" />}
                 {tab === 'games' && <Gamepad2 className="w-3.5 h-3.5" />}
                 {tab === 'tournaments' && <Swords className="w-3.5 h-3.5" />}
-                {tab === 'audit' && <FileText className="w-3.5 h-3.5" />}
-                <span>{tab === 'audit' ? 'Audit Logs' : tab}</span>
+                <span>{tab}</span>
               </button>
             )
           )}
@@ -504,18 +382,6 @@ export const AdminDashboard: React.FC = () => {
                   <th className="py-3 px-4 text-right">Inspect Action</th>
                 </tr>
               )}
-
-              {activeTab === 'audit' && (
-                <tr>
-                  <th className="py-3 px-4">Timestamp</th>
-                  <th className="py-3 px-4">Actor</th>
-                  <th className="py-3 px-4">Action Type</th>
-                  <th className="py-3 px-4">Target Entity</th>
-                  <th className="py-3 px-4">Target ID</th>
-                  <th className="py-3 px-4">IP / Context</th>
-                  <th className="py-3 px-4 text-right">Details Context</th>
-                </tr>
-              )}
             </thead>
 
             {/* Table Body with Loading Skeletons */}
@@ -528,35 +394,41 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                   </tr>
                 ))
-              ) : tableData.length === 0 ? (
+              ) : (tableData || []).length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-500">
                     No entities found in {activeTab}.
                   </td>
                 </tr>
               ) : (
-                tableData.map((item) => {
+                (tableData || []).map((item) => {
+                  if (!item) return null;
+
                   if (activeTab === 'players' || activeTab === 'organizers' || activeTab === 'referees') {
+                    const username = item.username || 'User';
+                    const userInitial = (username || 'U').slice(0, 1).toUpperCase();
+                    const uuidDisplay = item.id ? `${item.id.slice(0, 8)}...` : 'N/A';
+
                     return (
-                      <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
+                      <tr key={item.id || Math.random()} className="hover:bg-slate-800/30 transition-colors">
                         <td className="py-3.5 px-4 font-semibold text-white">
                           <div className="flex items-center space-x-2.5">
                             <div className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">
-                              {item.username.slice(0, 1).toUpperCase()}
+                              {userInitial}
                             </div>
                             <div>
-                              <span>{item.username}</span>
+                              <span>{username}</span>
                               <span className="text-[11px] text-slate-500 block font-normal">
-                                {item.email}
+                                {item.email || ''}
                               </span>
                             </div>
                           </div>
                         </td>
                         <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                          {item.id.slice(0, 8)}...
+                          {uuidDisplay}
                         </td>
                         <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
-                          {new Date(item.createdAt).toLocaleDateString()}
+                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
                         </td>
                         <td className="py-3.5 px-4 font-mono text-cyan-400 font-semibold">
                           {item.gamesPlayed ?? item.tournamentsManaged ?? item.matchesAdjudicated ?? 0}
@@ -584,7 +456,7 @@ export const AdminDashboard: React.FC = () => {
                             </button>
                           ) : (
                             <button
-                              onClick={() => setBanTarget({ id: item.id, username: item.username })}
+                              onClick={() => setBanTarget({ id: item.id, username: item.username || 'User' })}
                               className="px-3 py-1 rounded text-[11px] font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 flex items-center space-x-1 ml-auto transition-colors"
                             >
                               <Ban className="w-3 h-3" />
@@ -597,30 +469,33 @@ export const AdminDashboard: React.FC = () => {
                   }
 
                   if (activeTab === 'games') {
+                    const title = item.title || 'Game';
+                    const gameInitial = (title || 'GM').slice(0, 2).toUpperCase();
+
                     return (
-                      <tr key={item.id} className="hover:bg-slate-800/30 transition-colors">
+                      <tr key={item.id || Math.random()} className="hover:bg-slate-800/30 transition-colors">
                         <td className="py-3.5 px-4 font-semibold text-white">
                           <div className="flex items-center space-x-3">
                             {item.coverImage ? (
                               <img
                                 src={item.coverImage}
-                                alt={item.title}
+                                alt={title}
                                 className="w-9 h-9 rounded-lg object-cover border border-slate-700"
                               />
                             ) : (
                               <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-cyan-400 font-bold border border-slate-700">
-                                {item.title.slice(0, 2).toUpperCase()}
+                                {gameInitial}
                               </div>
                             )}
                             <div>
-                              <span>{item.title}</span>
+                              <span>{title}</span>
                               <span className="text-[11px] text-slate-500 block font-mono">
-                                slug: {item.slug}
+                                slug: {item.slug || 'n-a'}
                               </span>
                             </div>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4 text-cyan-400 font-medium">{item.genre}</td>
+                        <td className="py-3.5 px-4 text-cyan-400 font-medium">{item.genre || 'N/A'}</td>
                         <td className="py-3.5 px-4 font-mono text-slate-300 text-[11px]">
                           {item.platform || 'PC'}
                         </td>
@@ -636,7 +511,7 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 font-mono text-slate-400 text-xs">
-                          {item.minTeamSize}-{item.maxTeamSize}
+                          {item.minTeamSize ?? 1}-{item.maxTeamSize ?? 5}
                         </td>
                         <td className="py-3.5 px-4 text-right space-x-2">
                           <button
@@ -647,7 +522,7 @@ export const AdminDashboard: React.FC = () => {
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteGame(item.id, item.title)}
+                            onClick={() => handleDeleteGame(item.id, title)}
                             className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30 transition-colors"
                             title="Delete Game"
                           >
@@ -659,104 +534,50 @@ export const AdminDashboard: React.FC = () => {
                   }
 
                   if (activeTab === 'tournaments') {
+                    const title = item.title || 'Untitled Tournament';
+
                     return (
                       <tr
-                        key={item.id}
-                        onClick={() => setInspectTournamentId(item.id)}
+                        key={item.id || Math.random()}
+                        onClick={() => item.id && setInspectTournamentId(item.id)}
                         className="hover:bg-slate-800/40 transition-colors cursor-pointer group"
                       >
                         <td className="py-3.5 px-4 font-semibold text-white group-hover:text-cyan-400 transition-colors">
                           <div className="flex items-center space-x-2">
-                            <span>{item.title}</span>
+                            <span>{title}</span>
                             <Eye className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                         </td>
                         <td className="py-3.5 px-4 text-cyan-400 font-medium">
-                          {item.game?.title}
+                          {item.game?.title || 'Game'}
                         </td>
                         <td className="py-3.5 px-4 text-slate-400 text-xs">
-                          {item.organizer?.username}
+                          {item.organizer?.username || 'Organizer'}
                         </td>
                         <td className="py-3.5 px-4 font-mono">
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                            {item.format}
+                            {item.format || 'SOLO'}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
-                          {new Date(item.startDate).toLocaleDateString()}
+                          {item.startDate ? new Date(item.startDate).toLocaleDateString() : 'TBD'}
                         </td>
                         <td className="py-3.5 px-4">
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                            {item.status}
+                            {item.status || 'UPCOMING'}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setInspectTournamentId(item.id);
+                              if (item.id) setInspectTournamentId(item.id);
                             }}
                             className="px-3 py-1 rounded text-[11px] font-semibold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center space-x-1 ml-auto transition-colors"
                           >
                             <Eye className="w-3 h-3" />
                             <span>Inspect DB</span>
                           </button>
-                        </td>
-                      </tr>
-                    );
-                  }
-
-                  if (activeTab === 'audit') {
-                    const getActionBadge = (type: string) => {
-                      if (type.includes('BAN')) return 'bg-red-500/10 text-red-400 border-red-500/30';
-                      if (type.includes('VERIFY')) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
-                      if (type.includes('DISPUTE')) return 'bg-purple-500/10 text-purple-400 border-purple-500/30';
-                      if (type.includes('SCORE')) return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
-                      if (type.includes('DELETE')) return 'bg-rose-500/10 text-rose-400 border-rose-500/30';
-                      return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
-                    };
-
-                    return (
-                      <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-400 whitespace-nowrap">
-                          {new Date(item.createdAt).toLocaleString()}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          {item.actor ? (
-                            <div>
-                              <span className="font-semibold text-white block text-xs">
-                                {item.actor.username}
-                              </span>
-                              <span className="text-[10px] font-mono text-cyan-400 uppercase">
-                                {item.actor.role}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-[10px] font-mono text-slate-500">SYSTEM</span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${getActionBadge(
-                              item.actionType
-                            )}`}
-                          >
-                            {item.actionType}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-xs text-white">
-                          {item.targetEntity}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-400 truncate max-w-[120px]">
-                          {item.targetId || 'N/A'}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                          {item.ipAddress || '127.0.0.1'}
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-1 rounded max-w-[200px] truncate inline-block">
-                            {item.details || '{}'}
-                          </span>
                         </td>
                       </tr>
                     );

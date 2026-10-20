@@ -1,31 +1,27 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard,
-  Users,
   Trophy,
   Gamepad2,
   Shield,
   PlusCircle,
-  FileText,
-  UserCheck,
   AlertTriangle,
   ClipboardList
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   const { role } = useAuth();
+  const location = useLocation();
 
   const getLinks = () => {
     switch (role) {
       case 'ADMIN':
         return [
           { to: '/admin', label: 'System Overview', icon: LayoutDashboard },
-          { to: '/admin#users', label: 'User & Staff Moderation', icon: Users },
-          { to: '/admin#games', label: 'Game Master Catalog', icon: Gamepad2 },
-          { to: '/admin#tournaments', label: 'All Platform Tournaments', icon: Trophy },
-          { to: '/admin#audit', label: 'Platform Audit Logs', icon: FileText },
+          { to: '/games', label: 'Game Master Catalog', icon: Gamepad2 },
+          { to: '/tournaments', label: 'All Platform Tournaments', icon: Trophy },
           { to: '/organizer/disputes', label: 'Disputes Review Board', icon: AlertTriangle }
         ];
       case 'ORGANIZER':
@@ -51,6 +47,23 @@ export const Sidebar: React.FC = () => {
 
   const links = getLinks();
 
+  const isLinkActive = (to: string, isDefaultActive: boolean) => {
+    if (isDefaultActive) return true;
+    const current = location.pathname;
+    if (to === '/referee/dashboard') {
+      return (
+        current === '/referee' ||
+        current === '/referee/' ||
+        current === '/referee/dashboard' ||
+        current === '/referee/portal' ||
+        current === '/dashboard' ||
+        current === '/dashboard/referee' ||
+        current.startsWith('/referee/matches')
+      );
+    }
+    return false;
+  };
+
   return (
     <aside className="w-64 border-r border-slate-800 bg-gaming-surface/50 p-4 hidden md:flex flex-col justify-between shrink-0 min-h-[calc(100vh-4rem)]">
       <div className="space-y-6">
@@ -65,13 +78,14 @@ export const Sidebar: React.FC = () => {
                 <NavLink
                   key={link.to}
                   to={link.to}
-                  className={({ isActive }) =>
-                    `flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                      isActive
+                  className={({ isActive }) => {
+                    const active = isLinkActive(link.to, isActive);
+                    return `flex items-center space-x-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                      active
                         ? 'bg-gradient-to-r from-blue-600/20 to-cyan-500/10 text-cyan-400 border border-cyan-500/30 shadow-glow-cyan'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                    }`
-                  }
+                    }`;
+                  }}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
                   <span>{link.label}</span>

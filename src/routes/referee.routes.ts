@@ -9,19 +9,36 @@ const router = Router();
 // Guarded for Referees, Admins, and Organizers
 router.use(authenticate, authorizeRoles([Roles.REFEREE, Roles.ADMIN, Roles.ORGANIZER]));
 
-// View assigned matches
+// 1. View assigned matches with KPI metrics
 router.get('/matches', RefereeController.getAssignedMatches);
 
-// One-click scorecard verification to flag scores as officially validated
-router.patch('/matches/:id/verify', RefereeController.verifyMatchScorecard);
+// 2. Match Control Room data & roster checklist
+router.get('/matches/:id', RefereeController.getMatchControlRoom);
 
-// Tournament check-in roster
+// 3. Match attendance toggling (Present, Late, No-Show, Disqualified) & substitute approval
+router.patch('/matches/:id/checkin', RefereeController.updateMatchCheckin);
+
+// 4. Lock Roster & Start Match / Update match status
+router.patch('/matches/:id/status', RefereeController.updateMatchStatus);
+
+// 5. Scorecard verification: One-click & Review with Overrides
+router.patch('/matches/:id/verify', RefereeController.verifyMatchScorecard);
+router.post('/matches/:id/verify-score', RefereeController.verifyScorecardWithOverride);
+
+// 6. Tournament check-in roster
 router.get('/tournaments/:id/participants', RefereeController.getTournamentRoster);
 
-// Participant check-in checklist: Mark players as 'CHECKED_IN' (Present), 'NO_SHOW', or 'DISQUALIFIED'
+// 7. Participant check-in checklist (Tournament level)
 router.patch('/tournaments/:id/participants/:participantId/check-in', RefereeController.updateParticipantCheckIn);
 
-// Disputes review board for referees
-router.get('/disputes', DisputeController.getAllDisputes);
+// 8. Read-only inspection of 2-tab (Solo) or 3-tab (Duo/Squad) Tournament Sub-Database
+router.get('/tournaments/:id/database', RefereeController.getTournamentDatabase);
+
+// 9. Dispute Resolution Queue & Action Suite
+router.get('/disputes', RefereeController.getRefereeDisputes);
+router.patch('/disputes/:disputeId', RefereeController.resolveRefereeDispute);
+
+// 10. Disciplinary & Flagging Actions (Warning, Match Disqualification, Escalate Admin)
+router.post('/players/:id/sanction', RefereeController.sanctionPlayer);
 
 export default router;

@@ -83,9 +83,14 @@ export const adminService = {
     }
   ): Promise<PaginatedResult<T>> {
     const res = await api.get(`/admin/tables/${table}`, { params });
+    const items = Array.isArray(res.data)
+      ? res.data
+      : (Array.isArray(res.data?.data)
+          ? res.data.data
+          : (res.data?.games || res.data?.tournaments || res.data?.players || res.data?.users || []));
     return {
-      data: res.data.data,
-      pagination: res.data.pagination
+      data: items || [],
+      pagination: res.data?.pagination || { page: 1, limit: 8, total: (items ? items.length : 0), totalPages: 1 }
     };
   },
 

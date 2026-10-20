@@ -35,6 +35,7 @@ export const RegisterPage: React.FC = () => {
 
       if (data.user.role === 'ADMIN') navigate('/admin');
       else if (data.user.role === 'ORGANIZER') navigate('/organizer');
+      else if (data.user.role === 'REFEREE') navigate('/referee/dashboard');
       else navigate('/player');
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Registration failed.');

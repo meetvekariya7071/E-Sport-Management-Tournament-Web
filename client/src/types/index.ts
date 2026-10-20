@@ -42,8 +42,11 @@ export interface Tournament {
   rules?: any;
   format: TournamentFormat;
   status: TournamentStatus;
+  lifecycleStatus?: 'UPCOMING' | 'REGISTRATION_OPEN' | 'IN_PROGRESS' | 'COMPLETED';
   maxParticipants: number;
   currentCount: number;
+  registrationStartDate: string;
+  registrationEndDate: string;
   startDate: string;
   endDate?: string;
   gameId?: string;

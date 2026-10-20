@@ -12,6 +12,8 @@ client/dist/
 .env.*.local
 
 # Database files
+*.db
+*.db-journal
 prisma/*.db
 prisma/*.db-journal
 *.sqlite

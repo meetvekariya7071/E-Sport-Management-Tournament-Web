@@ -194,6 +194,8 @@ async function main() {
       currentCount: 1,
       gameId: bgmi.id,
       organizerId: organizer.id,
+      registrationStartDate: new Date(Date.now() - 7 * 86400000),
+      registrationEndDate: new Date(Date.now() - 4 * 86400000),
       startDate: new Date(Date.now() - 3 * 86400000),
       endDate: new Date(Date.now() - 1 * 86400000)
     }
@@ -225,6 +227,7 @@ async function main() {
       tournamentId: tourneySolo.id,
       roundId: soloRound.id,
       matchNumber: 1,
+      refereeId: referee.id,
       status: 'COMPLETED',
       isVerified: true,
       verifiedById: referee.id,
@@ -263,6 +266,8 @@ async function main() {
       currentCount: 2,
       gameId: rocketLeague.id,
       organizerId: organizer.id,
+      registrationStartDate: new Date(Date.now() - 5 * 86400000),
+      registrationEndDate: new Date(Date.now() - 1 * 86400000),
       startDate: new Date(Date.now() - 1 * 86400000),
       endDate: new Date(Date.now() + 2 * 86400000)
     }
@@ -314,7 +319,7 @@ async function main() {
       userId: player2.id,
       teamId: duoTeam.id,
       inGameName: 'NovaBlast',
-      status: 'CHECKED_IN',
+      status: 'REGISTERED',
       seed: 1
     }
   });
@@ -333,6 +338,7 @@ async function main() {
       tournamentId: tourneyDuo.id,
       roundId: duoRound.id,
       matchNumber: 1,
+      refereeId: referee.id,
       status: 'COMPLETED',
       isVerified: true,
       verifiedById: referee.id,
@@ -361,7 +367,53 @@ async function main() {
     }
   });
 
-  console.log(`✓ Tournament 2 (DUO): "${tourneyDuo.title}" (Team: Apex Duo, Code: DUO101, Players: 1 & 2).`);
+  // Match 2: Awaiting check-in for Referee Match Control Room testing
+  const duoMatchLive = await prisma.match.create({
+    data: {
+      tournamentId: tourneyDuo.id,
+      roundId: duoRound.id,
+      matchNumber: 2,
+      refereeId: referee.id,
+      status: 'AWAITING_CHECKIN'
+    }
+  });
+
+  await prisma.matchResult.create({
+    data: {
+      matchId: duoMatchLive.id,
+      participantId: duoPart1.id,
+      score: 0,
+      kills: 0,
+      isWinner: false
+    }
+  });
+
+  await prisma.matchResult.create({
+    data: {
+      matchId: duoMatchLive.id,
+      participantId: duoPart2.id,
+      score: 0,
+      kills: 0,
+      isWinner: false
+    }
+  });
+
+  console.log(`✓ Tournament 2 (DUO): "${tourneyDuo.title}" (Matches #1 Completed & #2 Awaiting Check-in assigned to Referee).`);
+
+  // Seed sample active dispute for Referee Dispute Resolution Queue testing
+  await prisma.dispute.create({
+    data: {
+      tournamentId: tourneyDuo.id,
+      matchId: duoMatchLive.id,
+      raisedById: player2.id,
+      accusedUserId: player1.id,
+      accusedParticipantId: duoPart1.id,
+      reason: 'INCORRECT_SCORE',
+      description: 'Opponent recorded 2 additional frags that occurred after the round timer buzzer.',
+      proofUrl: 'https://clips.twitch.tv/RocketLeagueClashDemo',
+      status: 'OPEN'
+    }
+  });
 
   // -------------------------------------------------------------------------
   // Tournament 3: SQUAD Upcoming / Registration Open (Clean slate)
@@ -380,12 +432,40 @@ async function main() {
       currentCount: 0,
       gameId: cs2.id,
       organizerId: organizer.id,
+      registrationStartDate: new Date(Date.now() - 2 * 86400000),
+      registrationEndDate: new Date(Date.now() + 3 * 86400000),
       startDate: new Date(Date.now() + 5 * 86400000),
       endDate: new Date(Date.now() + 10 * 86400000)
     }
   });
 
   console.log(`✓ Tournament 3 (SQUAD): "${tourneySquad.title}" (Status: REGISTRATION_OPEN, 0 participants).`);
+
+  // -------------------------------------------------------------------------
+  // Tournament 4: FUTURE / UPCOMING (Opening Soon)
+  // -------------------------------------------------------------------------
+  const tourneyUpcoming = await prisma.tournament.create({
+    data: {
+      title: 'Valorant Champions Tour: Opening Qualifier',
+      slug: 'valorant-champions-tour-opening-qualifier',
+      description: 'The road to glory begins here. Registration opens soon for premier tier squads.',
+      bannerImage: valorant.coverImage,
+      prizePool: '$15,000 USD',
+      structure: 'SINGLE_ELIMINATION',
+      format: 'SQUAD',
+      status: 'UPCOMING',
+      maxParticipants: 32,
+      currentCount: 0,
+      gameId: valorant.id,
+      organizerId: organizer.id,
+      registrationStartDate: new Date(Date.now() + 3 * 86400000),
+      registrationEndDate: new Date(Date.now() + 7 * 86400000),
+      startDate: new Date(Date.now() + 8 * 86400000),
+      endDate: new Date(Date.now() + 12 * 86400000)
+    }
+  });
+
+  console.log(`✓ Tournament 4 (UPCOMING): "${tourneyUpcoming.title}" (Status: UPCOMING, registration opens in 3 days).`);
 
   // Seed sample audit log entry
   await prisma.auditLog.create({

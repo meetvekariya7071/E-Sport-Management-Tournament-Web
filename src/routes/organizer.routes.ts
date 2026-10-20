@@ -10,8 +10,8 @@ import { cacheService } from '../services/cache.service';
 
 const router = Router();
 
-// Apply auth & role guards (Organizer & Admin only)
-router.use(authenticate, authorizeRoles([Roles.ORGANIZER, Roles.ADMIN]));
+// Apply auth & role guards (Organizer, Admin, and Referee inspection)
+router.use(authenticate, authorizeRoles([Roles.ORGANIZER, Roles.ADMIN, Roles.REFEREE]));
 
 // Organizer Workspace Stats
 router.get('/stats', TournamentController.getOrganizerStats);

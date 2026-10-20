@@ -65,9 +65,9 @@ export const GameModal: React.FC<GameModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-lg rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-6 text-slate-100 gaming-card">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+      <div className="relative w-full max-w-lg max-h-[90vh] flex flex-col rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl text-slate-100 gaming-card overflow-hidden">
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800 p-6 pb-4 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3 text-cyan-400">
             <div className="w-9 h-9 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
               <Gamepad2 className="w-5 h-5" />
@@ -81,21 +81,23 @@ export const GameModal: React.FC<GameModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-300 flex items-center space-x-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+        {/* Scrollable Form Body */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-700">
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-300 flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">
                 Game Title *
@@ -227,20 +229,22 @@ export const GameModal: React.FC<GameModalProps> = ({
               </div>
             )}
           </div>
+          </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-800">
+          {/* Sticky Bottom Actions */}
+          <div className="sticky bottom-0 z-10 bg-slate-900 border-t border-slate-800 p-4 sm:px-6 flex items-center justify-end space-x-3 shrink-0">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-xs rounded-lg text-slate-300 hover:text-white hover:bg-slate-800"
+              className="px-4 py-2 text-xs rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 text-xs font-heading font-bold rounded-xl bg-cyan-400 hover:bg-cyan-300 text-black shadow-glow-cyan transition-all"
+              className="px-5 py-2 text-xs font-heading font-bold rounded-xl bg-cyan-400 hover:bg-cyan-300 text-black shadow-glow-cyan transition-all disabled:opacity-50"
             >
               {isSubmitting ? 'Saving...' : isEditing ? 'Update Game' : 'Publish Game'}
             </button>
@@ -250,3 +254,6 @@ export const GameModal: React.FC<GameModalProps> = ({
     </div>
   );
 };
+
+export const AddGameModal = GameModal;
+

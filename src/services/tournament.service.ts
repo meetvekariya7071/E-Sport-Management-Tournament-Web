@@ -7,6 +7,7 @@ import {
   ParticipantStatuses,
   MatchStatuses
 } from '../types';
+import { evaluateTournamentLifecycle } from '../utils/tournamentLifecycle';
 
 export class TournamentService {
   /**
@@ -24,6 +25,8 @@ export class TournamentService {
     organizerId: string;
     format: TournamentFormat;
     maxParticipants: number;
+    registrationStartDate?: string;
+    registrationEndDate?: string;
     startDate: string;
     endDate?: string;
     rules?: any;
@@ -39,6 +42,8 @@ export class TournamentService {
       organizerId,
       format,
       maxParticipants,
+      registrationStartDate,
+      registrationEndDate,
       startDate,
       endDate,
       rules
@@ -66,6 +71,18 @@ export class TournamentService {
       throw new Error('CONFLICT: A tournament with this URL slug already exists.');
     }
 
+    const regStartDate = registrationStartDate ? new Date(registrationStartDate) : new Date();
+    const regEndDate = registrationEndDate ? new Date(registrationEndDate) : new Date(startDate);
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : null;
+
+    const initialStatus = evaluateTournamentLifecycle({
+      registrationStartDate: regStartDate,
+      registrationEndDate: regEndDate,
+      startDate: start,
+      endDate: end
+    });
+
     return await prisma.tournament.create({
       data: {
         title,
@@ -77,10 +94,12 @@ export class TournamentService {
         gameId,
         organizerId,
         format,
-        status: TournamentStatuses.REGISTRATION_OPEN,
+        status: initialStatus,
         maxParticipants: Number(maxParticipants),
-        startDate: new Date(startDate),
-        endDate: endDate ? new Date(endDate) : null,
+        registrationStartDate: regStartDate,
+        registrationEndDate: regEndDate,
+        startDate: start,
+        endDate: end,
         rules: rules ? (typeof rules === 'string' ? rules : JSON.stringify(rules)) : '{}'
       },
       include: {
@@ -202,7 +221,12 @@ export class TournamentService {
    * - Database 2: Teams Table (only instantiated if DUO/SQUAD, completely omitted if SOLO)
    * - Database 3: Scores / Leaderboard Database (matrix of matches, scores, kills, placement, winners)
    */
-  static async getTournamentDatabase(tournamentId: string, organizerId: string, isAdmin = false) {
+  static async getTournamentDatabase(
+    tournamentId: string,
+    organizerId: string,
+    isAdmin = false,
+    isReferee = false
+  ) {
     // First check tournament basic format and authorization with lightweight select
     const baseInfo = await prisma.tournament.findUnique({
       where: { id: tournamentId },
@@ -217,7 +241,7 @@ export class TournamentService {
       throw new Error('NOT_FOUND: Tournament does not exist.');
     }
 
-    if (!isAdmin && baseInfo.organizerId !== organizerId) {
+    if (!isAdmin && !isReferee && baseInfo.organizerId !== organizerId) {
       throw new Error('FORBIDDEN: You do not own this tournament.');
     }
 
@@ -810,6 +834,7 @@ export class TournamentService {
 
     return {
       ...tournament,
+      lifecycleStatus: evaluateTournamentLifecycle(tournament),
       teams: (tournament as any).teams || []
     };
   }
@@ -840,7 +865,7 @@ export class TournamentService {
       ];
     }
 
-    return await prisma.tournament.findMany({
+    const tournaments = await prisma.tournament.findMany({
       where,
       include: {
         game: { select: { id: true, title: true, slug: true, coverImage: true, genre: true, platform: true } },
@@ -849,6 +874,11 @@ export class TournamentService {
       },
       orderBy: { startDate: 'asc' }
     });
+
+    return tournaments.map((t) => ({
+      ...t,
+      lifecycleStatus: evaluateTournamentLifecycle(t)
+    }));
   }
 
   /**

@@ -4,7 +4,12 @@ import { Game } from '../types';
 export const gameService = {
   async getAllGames(): Promise<Game[]> {
     const res = await api.get('/games');
-    return res.data.data;
+    const gamesData = Array.isArray(res.data)
+      ? res.data
+      : (Array.isArray(res.data?.data)
+          ? res.data.data
+          : (res.data?.games || []));
+    return gamesData || [];
   },
 
   async createGame(data: {

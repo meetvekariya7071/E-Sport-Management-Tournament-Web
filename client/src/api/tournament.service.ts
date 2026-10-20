@@ -160,6 +160,8 @@ export const tournamentService = {
     gameId: string;
     format: TournamentFormat;
     maxParticipants: number;
+    registrationStartDate: string;
+    registrationEndDate: string;
     startDate: string;
     endDate?: string;
     rules?: any;

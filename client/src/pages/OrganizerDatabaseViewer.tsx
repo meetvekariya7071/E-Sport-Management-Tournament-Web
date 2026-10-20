@@ -116,7 +116,7 @@ export const OrganizerDatabaseViewer: React.FC = () => {
       } else {
         // Pre-fill with tournament participants
         setEditingScores(
-          currentData.playersTable.slice(0, 2).map((p) => ({
+          (currentData?.playersTable || []).slice(0, 2).map((p) => ({
             participantId: p.participantId,
             score: 0,
             kills: 0,
@@ -225,13 +225,13 @@ export const OrganizerDatabaseViewer: React.FC = () => {
     return list;
   }, [dbData, playerSearch, playerSort]);
 
-  const totalPlayerPages = Math.max(1, Math.ceil(processedPlayers.length / pageSize));
-  const paginatedPlayers = processedPlayers.slice((playerPage - 1) * pageSize, playerPage * pageSize);
+  const totalPlayerPages = Math.max(1, Math.ceil((processedPlayers || []).length / pageSize));
+  const paginatedPlayers = (processedPlayers || []).slice((playerPage - 1) * pageSize, playerPage * pageSize);
 
   // Processed (Filtered & Sorted) Teams
   const processedTeams = useMemo(() => {
     if (!dbData) return [];
-    let list = dbData.teamsTable.filter((t) => {
+    let list = (dbData.teamsTable || []).filter((t) => {
       const q = teamSearch.toLowerCase();
       return (
         t.name.toLowerCase().includes(q) ||
@@ -258,13 +258,13 @@ export const OrganizerDatabaseViewer: React.FC = () => {
     return list;
   }, [dbData, teamSearch, teamSort]);
 
-  const totalTeamPages = Math.max(1, Math.ceil(processedTeams.length / pageSize));
-  const paginatedTeams = processedTeams.slice((teamPage - 1) * pageSize, teamPage * pageSize);
+  const totalTeamPages = Math.max(1, Math.ceil((processedTeams || []).length / pageSize));
+  const paginatedTeams = (processedTeams || []).slice((teamPage - 1) * pageSize, teamPage * pageSize);
 
   // Processed (Filtered & Sorted) Scoreboard
   const processedScores = useMemo(() => {
     if (!dbData) return [];
-    let list = dbData.scoreMatrix.leaderboard.map((item, idx) => ({ ...item, rank: idx + 1 })).filter((s) => {
+    let list = (dbData.scoreMatrix?.leaderboard || []).map((item, idx) => ({ ...item, rank: idx + 1 })).filter((s) => {
       const q = scoreSearch.toLowerCase();
       return s.competitorName.toLowerCase().includes(q);
     });
@@ -282,8 +282,8 @@ export const OrganizerDatabaseViewer: React.FC = () => {
     return list;
   }, [dbData, scoreSearch, scoreSort]);
 
-  const totalScorePages = Math.max(1, Math.ceil(processedScores.length / pageSize));
-  const paginatedScores = processedScores.slice((scorePage - 1) * pageSize, scorePage * pageSize);
+  const totalScorePages = Math.max(1, Math.ceil((processedScores || []).length / pageSize));
+  const paginatedScores = (processedScores || []).slice((scorePage - 1) * pageSize, scorePage * pageSize);
 
   const toggleSort = (
     current: { field: string; order: 'asc' | 'desc' },

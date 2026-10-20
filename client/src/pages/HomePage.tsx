@@ -24,8 +24,8 @@ export const HomePage: React.FC = () => {
   }, []);
 
   // Limit preview to strictly the first 3 items
-  const featuredTournaments = tournaments.slice(0, 3);
-  const featuredGames = games.slice(0, 3);
+  const featuredTournaments = (tournaments || []).slice(0, 3);
+  const featuredGames = (games || []).slice(0, 3);
 
   const getFormatBadgeColor = (format: string) => {
     switch (format) {
@@ -250,7 +250,7 @@ export const HomePage: React.FC = () => {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900 text-cyan-400 font-bold font-heading text-lg">
-                      {game.title.slice(0, 2).toUpperCase()}
+                      {(game.title || 'GM').slice(0, 2).toUpperCase()}
                     </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />

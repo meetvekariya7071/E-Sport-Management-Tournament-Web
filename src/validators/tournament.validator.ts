@@ -25,6 +25,14 @@ export const createTournamentSchema = z.object({
       .int('Must be an integer')
       .min(2, 'Must support at least 2 participants')
       .max(256, 'Max participants cannot exceed 256'),
+    registrationStartDate: z
+      .string()
+      .optional()
+      .refine((val) => !val || !isNaN(Date.parse(val)), { message: 'Registration start date must be a valid ISO date string' }),
+    registrationEndDate: z
+      .string()
+      .optional()
+      .refine((val) => !val || !isNaN(Date.parse(val)), { message: 'Registration end date must be a valid ISO date string' }),
     startDate: z
       .string({ required_error: 'Start date is required' })
       .refine((val) => !isNaN(Date.parse(val)), { message: 'Start date must be a valid ISO date string' }),
@@ -33,6 +41,41 @@ export const createTournamentSchema = z.object({
       .optional()
       .refine((val) => !val || !isNaN(Date.parse(val)), { message: 'End date must be a valid ISO date string' }),
     rules: z.any().optional()
+  }).superRefine((data, ctx) => {
+    const regStart = data.registrationStartDate ? new Date(data.registrationStartDate).getTime() : null;
+    const regEnd = data.registrationEndDate ? new Date(data.registrationEndDate).getTime() : null;
+    const start = new Date(data.startDate).getTime();
+    const end = data.endDate ? new Date(data.endDate).getTime() : null;
+
+    if (regStart !== null && regEnd !== null) {
+      if (regStart >= regEnd) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'registrationStartDate must be strictly before registrationEndDate',
+          path: ['registrationEndDate']
+        });
+      }
+    }
+
+    if (regEnd !== null) {
+      if (regEnd > start) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'registrationEndDate must be on or before startDate',
+          path: ['startDate']
+        });
+      }
+    }
+
+    if (end !== null) {
+      if (start >= end) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'startDate must be strictly before endDate',
+          path: ['endDate']
+        });
+      }
+    }
   })
 });
 

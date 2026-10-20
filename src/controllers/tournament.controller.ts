@@ -25,6 +25,8 @@ export class TournamentController {
         gameId,
         format,
         maxParticipants,
+        registrationStartDate,
+        registrationEndDate,
         startDate,
         endDate,
         rules
@@ -51,6 +53,8 @@ export class TournamentController {
         organizerId,
         format: format as TournamentFormat,
         maxParticipants: Number(maxParticipants),
+        registrationStartDate,
+        registrationEndDate,
         startDate,
         endDate,
         rules

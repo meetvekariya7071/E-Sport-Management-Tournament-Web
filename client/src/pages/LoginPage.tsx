@@ -35,6 +35,7 @@ export const LoginPage: React.FC = () => {
       // Redirect to proper role dashboard
       if (data.user.role === 'ADMIN') navigate('/admin');
       else if (data.user.role === 'ORGANIZER') navigate('/organizer');
+      else if (data.user.role === 'REFEREE') navigate('/referee/dashboard');
       else navigate('/player');
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Login failed. Please check credentials.');
@@ -128,7 +129,7 @@ export const LoginPage: React.FC = () => {
             <span className="text-[11px] font-mono text-slate-400 block mb-2 uppercase tracking-wider">
               Fast Demo Accounts (Password: PASSWORD123!)
             </span>
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               <button
                 type="button"
                 onClick={() => handleDemoFill('admin@esports.com')}
@@ -142,6 +143,13 @@ export const LoginPage: React.FC = () => {
                 className="py-1.5 px-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-medium"
               >
                 Organizer
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDemoFill('referee@esports.com')}
+                className="py-1.5 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-medium"
+              >
+                Referee
               </button>
               <button
                 type="button"
