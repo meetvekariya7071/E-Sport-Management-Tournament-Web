@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { tournamentService } from '../api/tournament.service';
-import { DisputeAPI, DisputeItem } from '../api/dispute.service';
+import { tournamentService } from '../services/tournament.service';
 import { PlayerRegistration, Tournament } from '../types';
 import { RegistrationModal } from '../components/RegistrationModal';
 import { RaiseDisputeModal } from '../components/RaiseDisputeModal';
+import { RosterSubstitutionModal } from '../components/RosterSubstitutionModal';
 import {
   Trophy,
   Shield,
+  ShieldAlert,
   Zap,
   Gamepad2,
   Calendar,
@@ -23,38 +24,67 @@ import {
   AlertTriangle,
   Clock,
   Swords,
-  ShieldAlert,
-  ExternalLink,
-  MessageSquare
+  UserCheck
 } from 'lucide-react';
 
-export const PlayerDashboard: React.FC = () => {
+interface PlayerDashboardProps {
+  defaultTab?: 'MY_TOURNAMENTS' | 'BROWSE' | 'HISTORY';
+}
+
+export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ defaultTab }) => {
   const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [registrations, setRegistrations] = useState<PlayerRegistration[]>([]);
   const [openTournaments, setOpenTournaments] = useState<Tournament[]>([]);
-  const [disputes, setDisputes] = useState<DisputeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  const [disputeTournament, setDisputeTournament] = useState<Tournament | null>(null);
+  const [substituteTeam, setSubstituteTeam] = useState<{
+    tournamentId: string;
+    tournamentTitle: string;
+    teamId: string;
+    teamName: string;
+    members: any[];
+  } | null>(null);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
-  // Dispute Modal State
-  const [disputeModalOpen, setDisputeModalOpen] = useState(false);
-  const [disputeTarget, setDisputeTarget] = useState<{ id: string; title: string } | null>(null);
+  // Tab: 'MY_TOURNAMENTS' | 'BROWSE' | 'HISTORY'
+  const getTabFromRoute = (): 'MY_TOURNAMENTS' | 'BROWSE' | 'HISTORY' => {
+    if (defaultTab) return defaultTab;
+    if (location.pathname.includes('/matches') || location.pathname.includes('/history')) return 'HISTORY';
+    if (location.pathname.includes('/browse')) return 'BROWSE';
+    return 'MY_TOURNAMENTS';
+  };
 
-  // Tab: 'MY_TOURNAMENTS' | 'BROWSE' | 'DISPUTES' | 'HISTORY'
-  const [activeTab, setActiveTab] = useState<'MY_TOURNAMENTS' | 'BROWSE' | 'DISPUTES' | 'HISTORY'>('MY_TOURNAMENTS');
+  const [activeTab, setActiveTab] = useState<'MY_TOURNAMENTS' | 'BROWSE' | 'HISTORY'>(getTabFromRoute);
+
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    } else if (location.pathname.includes('/matches') || location.pathname.includes('/history')) {
+      setActiveTab('HISTORY');
+    } else if (location.pathname.includes('/browse')) {
+      setActiveTab('BROWSE');
+    } else if (
+      location.pathname.includes('/my-tournaments') ||
+      location.pathname.includes('/teams') ||
+      location.pathname === '/player' ||
+      location.pathname === '/dashboard/my-tournaments'
+    ) {
+      setActiveTab('MY_TOURNAMENTS');
+    }
+  }, [defaultTab, location.pathname]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [regs, openList, dispData] = await Promise.all([
+      const [regs, openList] = await Promise.all([
         tournamentService.getPlayerRegistrations().catch(() => []),
-        tournamentService.getPublicTournaments({ status: 'REGISTRATION_OPEN' }).catch(() => []),
-        DisputeAPI.getAllDisputes().catch(() => ({ disputes: [] }))
+        tournamentService.getPublicTournaments({ status: 'REGISTRATION_OPEN' }).catch(() => [])
       ]);
       setRegistrations(regs || []);
       setOpenTournaments(openList || []);
-      setDisputes(dispData.disputes || []);
     } catch (err) {
       console.error('Failed to load player match hub data:', err);
     } finally {
@@ -148,8 +178,11 @@ export const PlayerDashboard: React.FC = () => {
       {/* Hub Navigation Tabs */}
       <div className="flex flex-wrap items-center gap-3 border-b border-slate-800 pb-3">
         <button
-          onClick={() => setActiveTab('MY_TOURNAMENTS')}
-          className={`px-4 py-2 rounded-xl text-xs font-heading font-bold flex items-center space-x-2 transition-all ${
+          onClick={() => {
+            setActiveTab('MY_TOURNAMENTS');
+            navigate('/player/my-tournaments');
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-heading font-bold flex items-center space-x-2 transition-all cursor-pointer relative z-10 ${
             activeTab === 'MY_TOURNAMENTS'
               ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-black shadow-glow-cyan'
               : 'text-slate-400 hover:text-white bg-slate-800/40'
@@ -160,8 +193,11 @@ export const PlayerDashboard: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('BROWSE')}
-          className={`px-4 py-2 rounded-xl text-xs font-heading font-bold flex items-center space-x-2 transition-all ${
+          onClick={() => {
+            setActiveTab('BROWSE');
+            navigate('/player/browse');
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-heading font-bold flex items-center space-x-2 transition-all cursor-pointer relative z-10 ${
             activeTab === 'BROWSE'
               ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-black shadow-glow-cyan'
               : 'text-slate-400 hover:text-white bg-slate-800/40'
@@ -169,18 +205,6 @@ export const PlayerDashboard: React.FC = () => {
         >
           <Gamepad2 className="w-4 h-4" />
           <span>Browse Open Cups ({openTournaments.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('DISPUTES')}
-          className={`px-4 py-2 rounded-xl text-xs font-heading font-bold flex items-center space-x-2 transition-all ${
-            activeTab === 'DISPUTES'
-              ? 'bg-gradient-to-r from-purple-600 to-indigo-500 text-white shadow-lg shadow-purple-600/30'
-              : 'text-slate-400 hover:text-white bg-slate-800/40'
-          }`}
-        >
-          <ShieldAlert className="w-4 h-4" />
-          <span>Disputes Filed ({disputes.length})</span>
         </button>
 
         <Link
@@ -273,14 +297,10 @@ export const PlayerDashboard: React.FC = () => {
                           View Details &rarr;
                         </Link>
 
-                        {/* Raise Dispute Button */}
                         <button
-                          onClick={() => {
-                            setDisputeTarget({ id: t.id, title: t.title });
-                            setDisputeModalOpen(true);
-                          }}
-                          className="px-3.5 py-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 text-xs font-heading font-bold flex items-center space-x-1.5 transition-colors"
-                          title="Report Cheating, Score Issue, or Rule Violation"
+                          onClick={() => setDisputeTournament(t)}
+                          className="px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-heading font-bold flex items-center space-x-1.5 transition-colors"
+                          title="Report rule violation or contest match score"
                         >
                           <ShieldAlert className="w-3.5 h-3.5" />
                           <span>Raise Dispute</span>
@@ -351,10 +371,30 @@ export const PlayerDashboard: React.FC = () => {
 
                         {/* Roster Members */}
                         <div className="space-y-1.5 pt-1">
-                          <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">
-                            Roster Members ({reg.team.members.length}/
-                            {t.format === 'DUO' ? 2 : 4})
-                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">
+                              Roster Members ({reg.team.members.length}/
+                              {t.format === 'DUO' ? 2 : 4})
+                            </span>
+                            {reg.team.isCaptain && t.status !== 'COMPLETED' && (
+                              <button
+                                onClick={() =>
+                                  setSubstituteTeam({
+                                    tournamentId: t.id,
+                                    tournamentTitle: t.title,
+                                    teamId: reg.team!.id,
+                                    teamName: reg.team!.name,
+                                    members: reg.team!.members
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/60 text-[10px] font-bold font-mono transition"
+                                title="Replace an inactive player with a registered substitute without disbanding team"
+                              >
+                                <UserCheck className="w-3 h-3 text-cyan-400" />
+                                <span>Emergency Substitute</span>
+                              </button>
+                            )}
+                          </div>
                           <div className="flex flex-wrap gap-2">
                             {reg.team.members.map((m) => (
                               <div
@@ -470,135 +510,6 @@ export const PlayerDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: DISPUTES FILED */}
-      {activeTab === 'DISPUTES' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-heading font-bold text-white flex items-center gap-2">
-                <ShieldAlert className="w-5 h-5 text-purple-400" />
-                Match Grievance & Dispute Tickets
-              </h2>
-              <p className="text-xs text-slate-400">
-                Official review requests submitted for match integrity, cheating reports, or score verification.
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                if (registrations.length > 0) {
-                  setDisputeTarget({
-                    id: registrations[0].tournament.id,
-                    title: registrations[0].tournament.title
-                  });
-                  setDisputeModalOpen(true);
-                } else {
-                  alert('You must be registered in at least one tournament to file a dispute.');
-                }
-              }}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-heading font-bold flex items-center space-x-2 transition-all shadow-lg shadow-purple-600/30"
-            >
-              <ShieldAlert className="w-4 h-4" />
-              <span>Raise New Dispute</span>
-            </button>
-          </div>
-
-          {disputes.length === 0 ? (
-            <div className="gaming-card rounded-2xl border border-slate-800 p-12 text-center space-y-4">
-              <ShieldAlert className="w-12 h-12 text-slate-600 mx-auto" />
-              <h3 className="font-heading font-bold text-lg text-white">No Disputes Filed</h3>
-              <p className="text-xs text-slate-400 max-w-md mx-auto">
-                All your matches are currently running smoothly without pending disputes or ticket submissions.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {disputes.map((dispute) => {
-                const getStatusPill = (status: string) => {
-                  switch (status) {
-                    case 'OPEN':
-                      return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
-                    case 'INVESTIGATING':
-                      return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
-                    case 'RESOLVED':
-                      return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
-                    case 'DISMISSED':
-                      return 'bg-slate-500/10 text-slate-400 border-slate-500/30';
-                    default:
-                      return 'bg-purple-500/10 text-purple-400 border-purple-500/30';
-                  }
-                };
-
-                return (
-                  <div
-                    key={dispute.id}
-                    className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-purple-500/30 space-y-4 transition-all"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-                      <div className="flex items-center space-x-3">
-                        <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full border uppercase font-bold ${getStatusPill(dispute.status)}`}>
-                          {dispute.status}
-                        </span>
-                        <span className="text-xs font-mono text-purple-400 uppercase font-semibold">
-                          Reason: {dispute.reason.replace(/_/g, ' ')}
-                        </span>
-                        <span className="text-[11px] font-mono text-slate-500">
-                          {new Date(dispute.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-                      {dispute.tournament && (
-                        <span className="text-xs font-heading font-bold text-slate-300">
-                          {dispute.tournament.title} {dispute.match ? `• Match #${dispute.match.matchNumber}` : ''}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        {dispute.description}
-                      </p>
-
-                      {dispute.proofUrl && (
-                        <div className="flex items-center space-x-2 text-xs text-cyan-400">
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <a
-                            href={dispute.proofUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline font-mono"
-                          >
-                            View Submitted Proof Evidence
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Resolution Note if resolved or investigating */}
-                    {dispute.resolutionNote && (
-                      <div className="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700/60 space-y-1 text-xs">
-                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                          <span className="font-semibold text-purple-300 flex items-center gap-1.5">
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            Official Resolution Verdict
-                          </span>
-                          {dispute.resolvedBy && (
-                            <span className="font-mono">
-                              By: {dispute.resolvedBy.username}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-slate-300 italic">
-                          "{dispute.resolutionNote}"
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Registration Modal Popup */}
       {selectedTournament && (
         <RegistrationModal
@@ -611,17 +522,40 @@ export const PlayerDashboard: React.FC = () => {
         />
       )}
 
-      {/* Raise Dispute Modal */}
-      {disputeTarget && (
+      {/* Match Dispute Modal Popup */}
+      {disputeTournament && (
         <RaiseDisputeModal
-          isOpen={disputeModalOpen}
-          onClose={() => {
-            setDisputeModalOpen(false);
-            setDisputeTarget(null);
+          isOpen={!!disputeTournament}
+          onClose={() => setDisputeTournament(null)}
+          tournamentId={disputeTournament.id}
+          matches={
+            disputeTournament.rounds
+              ? disputeTournament.rounds.flatMap((r: any) =>
+                  (r.matches || []).map((m: any) => ({
+                    id: m.id,
+                    matchNumber: m.matchNumber,
+                    roundName: r.name
+                  }))
+                )
+              : []
+          }
+          onSuccess={() => {
+            loadData();
           }}
-          tournamentId={disputeTarget.id}
-          tournamentTitle={disputeTarget.title}
-          onDisputeSubmitted={() => {
+        />
+      )}
+
+      {/* Roster Substitution Modal */}
+      {substituteTeam && (
+        <RosterSubstitutionModal
+          isOpen={!!substituteTeam}
+          onClose={() => setSubstituteTeam(null)}
+          tournamentId={substituteTeam.tournamentId}
+          tournamentTitle={substituteTeam.tournamentTitle}
+          teamId={substituteTeam.teamId}
+          teamName={substituteTeam.teamName}
+          members={substituteTeam.members}
+          onSuccess={() => {
             loadData();
           }}
         />
@@ -629,3 +563,5 @@ export const PlayerDashboard: React.FC = () => {
     </div>
   );
 };
+
+

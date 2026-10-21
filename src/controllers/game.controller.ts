@@ -7,7 +7,7 @@ export class GameController {
    */
   static async createGame(req: Request, res: Response): Promise<void> {
     try {
-      const { title, slug, genre, isTeamBased, minTeamSize, maxTeamSize, metadata } = req.body;
+      const { title, slug, genre, platform, coverImage, isTeamBased, minTeamSize, maxTeamSize, metadata } = req.body;
       const adminId = req.user!.id;
 
       if (!title || !slug || !genre) {
@@ -22,6 +22,8 @@ export class GameController {
         title,
         slug,
         genre,
+        platform,
+        coverImage,
         isTeamBased,
         minTeamSize: minTeamSize ? Number(minTeamSize) : 1,
         maxTeamSize: maxTeamSize ? Number(maxTeamSize) : 1,
@@ -39,6 +41,27 @@ export class GameController {
         res.status(409).json({ success: false, error: error.message.replace('CONFLICT: ', '') });
       } else {
         res.status(500).json({ success: false, error: error.message || 'Failed to create game.' });
+      }
+    }
+  }
+
+  /**
+   * PUT /api/games/:id (Admin only)
+   */
+  static async updateGame(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const updated = await GameService.updateGame(id, req.body);
+      res.status(200).json({
+        success: true,
+        message: 'Game updated successfully.',
+        data: updated
+      });
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Failed to update game.' });
       }
     }
   }

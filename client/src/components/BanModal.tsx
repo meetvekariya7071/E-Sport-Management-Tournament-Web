@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Ban, AlertTriangle, X } from 'lucide-react';
-import { adminService } from '../api/admin.service';
-import { useToast } from '../context/ToastContext';
+import { adminService } from '../services/admin.service';
 
 interface BanModalProps {
   isOpen: boolean;
@@ -18,7 +17,6 @@ export const BanModal: React.FC<BanModalProps> = ({
   username,
   onSuccess
 }) => {
-  const toast = useToast();
   const [violation, setViolation] = useState('Cheating');
   const [reason, setReason] = useState('');
   const [duration, setDuration] = useState('Permanent');
@@ -35,13 +33,10 @@ export const BanModal: React.FC<BanModalProps> = ({
     try {
       const fullReason = `[${violation}] (${duration}): ${reason || 'Administrative penalty applied.'}`;
       await adminService.toggleUserBan(userId, true, fullReason);
-      toast.warning('Account Suspended', `User ${username} has been banned for: ${violation}`);
       onSuccess();
       onClose();
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to ban user';
-      setError(errorMsg);
-      toast.error('Ban Action Failed', errorMsg);
+      setError(err.response?.data?.error || err.message || 'Failed to ban user');
     } finally {
       setIsSubmitting(false);
     }

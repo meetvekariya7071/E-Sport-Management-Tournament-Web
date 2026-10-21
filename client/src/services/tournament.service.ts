@@ -1,5 +1,5 @@
 import api from './axios';
-import { Tournament, TournamentDetails, TournamentFormat } from '../types';
+import { Tournament, TournamentDetails, TournamentFormat, BracketTreeData } from '../types';
 
 export interface OrganizerStats {
   totalHosted: number;
@@ -234,74 +234,184 @@ export const tournamentService = {
     return res.data.data;
   },
 
-  // Generate & Seed Tournament Bracket
-  async generateBracket(tournamentId: string): Promise<any> {
-    const res = await api.post(`/tournaments/${tournamentId}/generate-bracket`);
-    return res.data;
-  },
+  // =========================================================================
+  // REAL-TIME BRACKET & SCORING ENGINE API
+  // =========================================================================
 
-  // Update Match Score & Advance Round Winners
-  async updateMatchScore(
-    tournamentId: string,
-    matchId: string,
-    data: { scores: any[]; status?: string }
-  ): Promise<any> {
-    const res = await api.put(`/tournaments/${tournamentId}/matches/${matchId}`, data);
-    return res.data;
-  },
-
-  // Get Structured Bracket Tree
-  async getBracket(tournamentId: string): Promise<any> {
+  // Fetch structured bracket tree and live standings
+  async getBracket(tournamentId: string): Promise<BracketTreeData> {
     const res = await api.get(`/tournaments/${tournamentId}/bracket`);
     return res.data.data;
   },
 
-  // Get Live Recalculated Leaderboard
-  async getLeaderboard(tournamentId: string): Promise<any[]> {
-    const res = await api.get(`/tournaments/${tournamentId}/leaderboard`);
-    return res.data.data;
+  // Generate / Seed bracket fixtures
+  async generateBracket(tournamentId: string): Promise<{ success: boolean; message: string }> {
+    const res = await api.post(`/tournaments/${tournamentId}/generate-bracket`);
+    return res.data;
   },
 
-  // Streaming CSV Exports
-  async exportParticipants(tournamentId: string): Promise<void> {
+  // Update a single match score and auto-advance winner
+  async updateMatchScore(
+    tournamentId: string,
+    matchId: string,
+    scores: Array<{
+      participantId: string;
+      score: number;
+      kills?: number;
+      placement?: number;
+      isWinner?: boolean;
+    }>
+  ): Promise<any> {
+    const res = await api.put(`/tournaments/${tournamentId}/matches/${matchId}`, { scores });
+    return res.data;
+  },
+
+  // Organizer: Publish entire round score matrix with instant WebSocket broadcast
+  async publishRound(
+    tournamentId: string,
+    roundId: string,
+    matchScores: Array<{
+      matchId: string;
+      scores: Array<{
+        participantId: string;
+        score: number;
+        kills?: number;
+        placement?: number;
+        isWinner?: boolean;
+      }>;
+    }>
+  ): Promise<any> {
+    const res = await api.post(`/tournaments/${tournamentId}/publish-round`, {
+      roundId,
+      matchScores
+    });
+    return res.data;
+  },
+
+  // Check in participant
+  async checkInParticipant(tournamentId: string, participantId: string): Promise<any> {
+    const res = await api.patch(`/tournaments/${tournamentId}/participants/${participantId}/checkin`);
+    return res.data;
+  },
+
+  // Bulk check-in all registered participants
+  async bulkCheckIn(tournamentId: string): Promise<any> {
+    const res = await api.post(`/tournaments/${tournamentId}/checkin-all`);
+    return res.data;
+  },
+
+  // =========================================================================
+  // SUB-DATABASE STREAMING CSV EXPORTS
+  // =========================================================================
+
+  // Export Players CSV
+  async exportParticipants(tournamentId: string, title = 'tournament'): Promise<void> {
     const res = await api.get(`/tournaments/${tournamentId}/export/participants`, {
       responseType: 'blob'
     });
-    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `tournament-${tournamentId}-participants.csv`);
+    const sanitizedTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+    link.setAttribute('download', `${sanitizedTitle}_players.csv`);
     document.body.appendChild(link);
     link.click();
-    link.remove();
+    link.parentNode?.removeChild(link);
     window.URL.revokeObjectURL(url);
   },
 
-  async exportTeams(tournamentId: string): Promise<void> {
+  // Export Teams CSV
+  async exportTeams(tournamentId: string, title = 'tournament'): Promise<void> {
     const res = await api.get(`/tournaments/${tournamentId}/export/teams`, {
       responseType: 'blob'
     });
-    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `tournament-${tournamentId}-teams.csv`);
+    const sanitizedTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+    link.setAttribute('download', `${sanitizedTitle}_teams.csv`);
     document.body.appendChild(link);
     link.click();
-    link.remove();
+    link.parentNode?.removeChild(link);
     window.URL.revokeObjectURL(url);
   },
 
-  async exportScores(tournamentId: string): Promise<void> {
+  // Export Scores & Standings CSV
+  async exportScores(tournamentId: string, title = 'tournament'): Promise<void> {
     const res = await api.get(`/tournaments/${tournamentId}/export/scores`, {
       responseType: 'blob'
     });
-    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `tournament-${tournamentId}-scoreboard.csv`);
+    const sanitizedTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+    link.setAttribute('download', `${sanitizedTitle}_scoreboard.csv`);
     document.body.appendChild(link);
     link.click();
-    link.remove();
+    link.parentNode?.removeChild(link);
     window.URL.revokeObjectURL(url);
+  },
+
+  // =========================================================================
+  // OPERATIONAL SAFEGUARDS, ROSTER EDGES & BRACKET RECOVERY
+  // =========================================================================
+
+  // Update Tie-Breaker Priority Rules
+  async updateTieBreakerRules(tournamentId: string, tieBreakerRules: string[]) {
+    const res = await api.patch(`/tournaments/${tournamentId}/tie-breakers`, {
+      tieBreakerRules
+    });
+    return res.data;
+  },
+
+  // Award Walkover / Bye
+  async awardWalkover(
+    tournamentId: string,
+    matchId: string,
+    data: { winnerParticipantId: string; forfeitParticipantId?: string; reason: string }
+  ) {
+    const res = await api.post(`/tournaments/${tournamentId}/matches/${matchId}/walkover`, data);
+    return res.data;
+  },
+
+  // Roll Back Match Advancement & Revert to Scheduled
+  async rollbackMatch(tournamentId: string, matchId: string) {
+    const res = await api.post(`/tournaments/${tournamentId}/matches/${matchId}/rollback`);
+    return res.data;
+  },
+
+  // Roll Back Entire Round Scores
+  async rollbackRound(tournamentId: string, roundId: string) {
+    const res = await api.post(`/tournaments/${tournamentId}/rounds/${roundId}/rollback`);
+    return res.data;
+  },
+
+  // Roster Substitution (Team Captain or Organizer)
+  async substituteTeamPlayer(
+    tournamentId: string,
+    teamId: string,
+    data: { outgoingUserId: string; incomingIdentifier: string; inGameName?: string }
+  ) {
+    const res = await api.post(`/tournaments/${tournamentId}/teams/${teamId}/substitute`, data);
+    return res.data;
+  },
+
+  // Set Custom Match Room Credentials (Organizer, Admin, Referee)
+  async setMatchCredentials(
+    tournamentId: string,
+    matchId: string,
+    data: { customRoomId: string; customRoomPassword?: string; roomInstructions?: string }
+  ) {
+    const res = await api.post(`/tournaments/${tournamentId}/matches/${matchId}/credentials`, data);
+    return res.data;
+  },
+
+  // Get Custom Match Room Credentials (Checked-in Participants, Referee, Organizer, Admin)
+  async getMatchCredentials(tournamentId: string, matchId: string) {
+    const res = await api.get(`/tournaments/${tournamentId}/matches/${matchId}/credentials`);
+    return res.data;
   }
 };
+
+
+

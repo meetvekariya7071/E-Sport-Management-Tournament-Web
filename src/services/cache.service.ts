@@ -1,104 +1,114 @@
 import NodeCache from 'node-cache';
 import { Request, Response, NextFunction } from 'express';
 
-class CacheService {
-  private cache: NodeCache;
+// Standard 30-second TTL default for high-read esports matches
+const cache = new NodeCache({
+  stdTTL: 30,
+  checkperiod: 45,
+  useClones: false
+});
 
-  constructor() {
-    // Standard default TTL of 30 seconds, purge check every 60 seconds
-    this.cache = new NodeCache({
-      stdTTL: 30,
-      checkperiod: 60,
-      useClones: false
-    });
-  }
-
-  get<T>(key: string): T | undefined {
-    return this.cache.get<T>(key);
-  }
-
-  set<T>(key: string, value: T, ttlSeconds?: number): boolean {
-    if (ttlSeconds !== undefined) {
-      return this.cache.set(key, value, ttlSeconds);
-    }
-    return this.cache.set(key, value);
-  }
-
-  del(key: string): number {
-    return this.cache.del(key);
+export class CacheService {
+  /**
+   * Retrieves an item from cache.
+   */
+  static get<T>(key: string): T | undefined {
+    return cache.get<T>(key);
   }
 
   /**
-   * Invalidate all cache entries associated with a specific tournament.
-   * Clears brackets, leaderboards, database views, and public listings.
+   * Stores an item with custom or default TTL (in seconds).
    */
-  invalidateTournament(tournamentId: string): void {
-    const allKeys = this.cache.keys();
+  static set(key: string, value: any, ttlSeconds: number = 30): boolean {
+    return cache.set(key, value, ttlSeconds);
+  }
+
+  /**
+   * Deletes a specific key.
+   */
+  static del(key: string): number {
+    return cache.del(key);
+  }
+
+  /**
+   * Dynamic cache invalidation:
+   * Invalidates all cached entries associated with a given tournament ID
+   * (e.g., details, bracket tree, sub-database queries, public catalog).
+   */
+  static invalidateTournament(tournamentId: string): void {
+    const allKeys = cache.keys();
+    const pattern = `tournament:${tournamentId}`;
     const keysToDelete = allKeys.filter(
-      (key) =>
-        key.includes(tournamentId) ||
-        key.includes('/api/tournaments')
+      (k) =>
+        k.startsWith(pattern) ||
+        k.includes(tournamentId) ||
+        k.startsWith('tournaments:catalog')
     );
 
     if (keysToDelete.length > 0) {
-      this.cache.del(keysToDelete);
+      cache.del(keysToDelete);
     }
   }
 
   /**
-   * Clears public catalog cache (e.g. when tournaments change status)
+   * Flushes entire cache.
    */
-  invalidatePublicCatalogs(): void {
-    const allKeys = this.cache.keys();
-    const catalogKeys = allKeys.filter((key) => key.startsWith('tournaments:public'));
-    if (catalogKeys.length > 0) {
-      this.cache.del(catalogKeys);
-    }
+  static flushAll(): void {
+    cache.flushAll();
   }
 
   /**
-   * Express middleware for route-level GET caching.
-   * @param ttlSeconds Seconds to cache the response (default: 20s)
+   * Returns cache metrics and key stats.
    */
-  middleware(ttlSeconds = 20) {
-    return (req: Request, res: Response, next: NextFunction): void => {
-      // Only cache GET requests
-      if (req.method !== 'GET') {
-        return next();
-      }
-
-      const cacheKey = `http:${req.originalUrl || req.url}`;
-      const cachedResponse = this.cache.get<any>(cacheKey);
-
-      if (cachedResponse) {
-        res.setHeader('X-Cache', 'HIT');
-        res.setHeader('X-Cache-TTL', `${ttlSeconds}s`);
-        res.status(200).json(cachedResponse);
-        return;
-      }
-
-      res.setHeader('X-Cache', 'MISS');
-
-      // Intercept res.json to cache response payload before sending
-      const originalJson = res.json.bind(res);
-      res.json = (body: any) => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          this.cache.set(cacheKey, body, ttlSeconds);
-        }
-        return originalJson(body);
-      };
-
-      next();
-    };
-  }
-
-  getStats() {
+  static getStats() {
+    const stats = cache.getStats();
     return {
-      keysCount: this.cache.keys().length,
-      ...this.cache.getStats()
+      keysCount: cache.keys().length,
+      hits: stats.hits,
+      misses: stats.misses,
+      ksize: stats.ksize,
+      vsize: stats.vsize
     };
   }
 }
 
-export const cacheService = new CacheService();
 
+/**
+ * Express middleware for automatic route response caching.
+ */
+export const cacheRoute = (prefix: string, ttlSeconds: number = 20) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    // Only cache GET requests
+    if (req.method !== 'GET') {
+      return next();
+    }
+
+    const tournamentId = req.params.id || req.params.tournamentId || '';
+    const queryStr = Object.keys(req.query).length > 0 ? JSON.stringify(req.query) : '';
+    const cacheKey = tournamentId
+      ? `tournament:${tournamentId}:${prefix}${queryStr ? `:${queryStr}` : ''}`
+      : `tournaments:${prefix}:${req.originalUrl}`;
+
+    const cachedData = CacheService.get(cacheKey);
+
+    if (cachedData) {
+      res.setHeader('X-Cache', 'HIT');
+      res.setHeader('X-Cache-Key', cacheKey);
+      res.status(200).json(cachedData);
+      return;
+    }
+
+    // Intercept res.json to populate cache
+    res.setHeader('X-Cache', 'MISS');
+    const originalJson = res.json.bind(res);
+
+    res.json = (body: any) => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        CacheService.set(cacheKey, body, ttlSeconds);
+      }
+      return originalJson(body);
+    };
+
+    next();
+  };
+};

@@ -1,183 +1,236 @@
 import React, { useState } from 'react';
-import { AlertCircle, X, ShieldAlert, CheckCircle2, Upload, ExternalLink } from 'lucide-react';
-import { DisputeAPI } from '../api/dispute.service';
+import { AlertCircle, X, ShieldAlert, Send, Link as LinkIcon, FileText } from 'lucide-react';
+import { disputeApi } from '../services/dispute.service';
+
+interface MatchOption {
+  id: string;
+  matchNumber: number;
+  roundName?: string;
+}
 
 interface RaiseDisputeModalProps {
   isOpen: boolean;
   onClose: () => void;
   tournamentId: string;
-  tournamentTitle: string;
-  matchId?: string;
-  matchNumber?: number;
-  onDisputeSubmitted?: () => void;
+  matches?: MatchOption[];
+  initialMatchId?: string;
+  onSuccess?: (dispute: any) => void;
 }
 
 export const RaiseDisputeModal: React.FC<RaiseDisputeModalProps> = ({
   isOpen,
   onClose,
   tournamentId,
-  tournamentTitle,
-  matchId,
-  matchNumber,
-  onDisputeSubmitted
+  matches = [],
+  initialMatchId,
+  onSuccess
 }) => {
+  const [matchId, setMatchId] = useState(initialMatchId || (matches[0]?.id ?? ''));
   const [reason, setReason] = useState('INCORRECT_SCORE');
   const [description, setDescription] = useState('');
   const [proofUrl, setProofUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description.trim()) {
-      setError('Please provide a detailed description of the incident.');
+    if (!matchId) {
+      setError('Please select the contested match.');
+      return;
+    }
+    if (!description.trim() || description.trim().length < 10) {
+      setError('Please provide a detailed description (minimum 10 characters).');
       return;
     }
 
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
-      await DisputeAPI.raiseDispute(tournamentId, {
+      const res = await disputeApi.createDispute(tournamentId, {
         matchId,
         reason,
         description: description.trim(),
         proofUrl: proofUrl.trim() || undefined
       });
 
-      setSuccess(true);
-      if (onDisputeSubmitted) {
-        onDisputeSubmitted();
+      setSubmitted(true);
+      if (onSuccess) {
+        onSuccess(res.data);
       }
       setTimeout(() => {
-        setSuccess(false);
+        setSubmitted(false);
+        setDescription('');
+        setProofUrl('');
         onClose();
-      }, 1800);
+      }, 1600);
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Failed to submit dispute ticket.');
+      setError(
+        err.response?.data?.error || err.message || 'Failed to submit dispute ticket. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
-              <ShieldAlert className="w-5 h-5 text-purple-400" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden border-t-2 border-t-rose-500">
+        {/* Modal Header */}
+        <div className="px-6 py-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400">
+              <ShieldAlert className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-heading font-bold text-base text-white">Raise Match Dispute</h3>
-              <p className="text-xs text-slate-400">
-                {tournamentTitle} {matchNumber ? `• Match #${matchNumber}` : ''}
+              <h3 className="text-base font-heading font-bold text-white tracking-wide">
+                RAISE MATCH DISPUTE
+              </h3>
+              <p className="text-[11px] text-slate-400 font-mono">
+                Submit violation ticket to referees & organizers
               </p>
             </div>
           </div>
+
           <button
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Success Banner */}
-        {success ? (
-          <div className="p-8 text-center space-y-3">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-400 animate-bounce">
-              <CheckCircle2 className="w-8 h-8" />
+        {/* Modal Form */}
+        {submitted ? (
+          <div className="p-8 text-center">
+            <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3 animate-bounce">
+              <Send className="w-6 h-6" />
             </div>
-            <h4 className="font-heading font-bold text-lg text-white">Dispute Ticket Filed</h4>
-            <p className="text-xs text-slate-400 max-w-xs mx-auto">
-              Referees and tournament organizers have been alerted and will review the evidence promptly.
+            <h4 className="text-base font-heading font-bold text-white mb-1">
+              Dispute Ticket Submitted
+            </h4>
+            <p className="text-xs text-slate-400">
+              Match status flagged as disputed. Referees and tournament staff have been notified for review.
             </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
             {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5 text-xs text-red-300">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>
             )}
 
-            {/* Reason Selection */}
+            {/* Match Select */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase font-mono tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-300 mb-1 uppercase tracking-wider font-mono">
+                Select Match
+              </label>
+              {matches.length > 0 ? (
+                <select
+                  value={matchId}
+                  onChange={(e) => setMatchId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500 font-mono"
+                  required
+                >
+                  {matches.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      Match #{m.matchNumber} {m.roundName ? `(${m.roundName})` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={matchId}
+                  onChange={(e) => setMatchId(e.target.value)}
+                  placeholder="Enter Match ID"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500 font-mono"
+                  required
+                />
+              )}
+            </div>
+
+            {/* Violation Reason */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1 uppercase tracking-wider font-mono">
                 Dispute Reason
               </label>
               <select
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500"
               >
-                <option value="INCORRECT_SCORE">Incorrect Score Entry / Placement</option>
-                <option value="CHEATING">Suspected Cheating / Exploits</option>
-                <option value="TOXIC_CONDUCT">Unsportsmanlike / Toxic Conduct</option>
-                <option value="RULE_VIOLATION">Tournament Rule Violation</option>
-                <option value="OTHER">Other Match Grievance</option>
+                <option value="INCORRECT_SCORE">Incorrect Score Entry / Wrong Kills</option>
+                <option value="CHEATING">Suspected Cheating / Exploits / Scripting</option>
+                <option value="TOXIC_CONDUCT">Toxic Conduct / Unsportsmanlike Behavior</option>
+                <option value="NO_SHOW">Opponent No-Show / False Check-In</option>
+                <option value="OTHER">Other Tournament Rule Violation</option>
               </select>
             </div>
 
             {/* Description */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase font-mono tracking-wider mb-1.5">
-                Incident Description *
+              <label className="block text-xs font-semibold text-slate-300 mb-1 uppercase tracking-wider font-mono">
+                Detailed Description
               </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Clearly describe what occurred, timestamps in video/vod, and what the correct outcome should be..."
                 rows={4}
+                placeholder="Clearly explain the incident with timestamps, round number, player names, or scorecard discrepancies..."
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 resize-none leading-relaxed"
                 required
-                className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors resize-none"
               />
             </div>
 
-            {/* Proof URL */}
+            {/* Screenshot / Proof Link */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase font-mono tracking-wider mb-1.5">
-                Screenshot / Proof Link (URL)
+              <label className="block text-xs font-semibold text-slate-300 mb-1 uppercase tracking-wider font-mono">
+                Proof / Evidence URL (Optional)
               </label>
               <div className="relative">
+                <LinkIcon className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
                 <input
                   type="url"
                   value={proofUrl}
                   onChange={(e) => setProofUrl(e.target.value)}
-                  placeholder="https://imgur.com/..., twitch clip, youtube vod link"
-                  className="w-full pl-3.5 pr-10 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition-colors"
+                  placeholder="https://clips.twitch.tv/... or imgur.com/..."
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono"
                 />
-                <ExternalLink className="absolute right-3.5 top-3 w-4 h-4 text-slate-500" />
               </div>
-              <span className="text-[11px] text-slate-500 mt-1 block">
-                Provide verifiable screenshots, stream clips, or scoreboard captures.
-              </span>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Provide video stream replay clips, screenshot proof, or tournament room log URLs.
+              </p>
             </div>
 
             {/* Actions */}
-            <div className="pt-2 flex items-center justify-end space-x-3">
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                disabled={loading}
+                className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 text-sm font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-xl shadow-lg shadow-purple-600/30 transition-all disabled:opacity-50 flex items-center space-x-2"
+                className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-xl shadow-lg shadow-rose-950/40 transition-all flex items-center gap-1.5 disabled:opacity-50"
               >
                 {loading ? (
-                  <span>Submitting...</span>
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Submitting...</span>
+                  </>
                 ) : (
                   <>
-                    <ShieldAlert className="w-4 h-4" />
+                    <Send className="w-3.5 h-3.5" />
                     <span>Submit Dispute</span>
                   </>
                 )}

@@ -1,31 +1,31 @@
-# ==============================================================================
-# STAGE 1: Build & Compile TypeScript
-# ==============================================================================
+# =========================================================================
+# Stage 1: Build Stage (Compiles TypeScript & Generates Prisma Client)
+# =========================================================================
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies
+# Install build dependencies for native modules (e.g., bcrypt)
 RUN apk add --no-cache python3 make g++
 
-# Copy dependency manifests and Prisma schema
+# Copy package descriptors and Prisma schema
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies and generate Prisma client
-RUN npm install
+# Install all dependencies and generate Prisma Client
+RUN npm ci
 RUN npx prisma generate
 
-# Copy source code and build config
+# Copy application source code
 COPY tsconfig.json ./
-COPY src ./src/
+COPY src ./src
 
-# Compile TypeScript to JavaScript
+# Compile TypeScript to JavaScript in /dist
 RUN npm run build
 
-# ==============================================================================
-# STAGE 2: Lightweight Production Runner
-# ==============================================================================
+# =========================================================================
+# Stage 2: Production Lightweight Runner Stage
+# =========================================================================
 FROM node:20-alpine AS runner
 
 WORKDIR /app
@@ -33,31 +33,31 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=5000
 
-# Install production runtime tools
-RUN apk add --no-cache openssl dumb-init
+# Install dumb-init or bash if needed for signal forwarding
+RUN apk add --no-cache openssl
 
-# Copy package manifests and Prisma schema
+# Copy package descriptors and prisma schema
 COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install only production dependencies
-RUN npm install --omit=dev
+RUN npm ci --omit=dev && npm cache clean --force
+RUN npx prisma generate
 
-# Copy generated Prisma Client and compiled JavaScript artifacts from builder
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Copy compiled code from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Create entrypoint startup script for DB sync and graceful launch
-RUN echo '#!/bin/sh' > /app/docker-entrypoint.sh && \
-    echo 'set -e' >> /app/docker-entrypoint.sh && \
-    echo 'echo "[Docker] Initializing Prisma schema sync..."' >> /app/docker-entrypoint.sh && \
-    echo 'npx prisma db push --skip-generate || true' >> /app/docker-entrypoint.sh && \
-    echo 'echo "[Docker] Launching production server..."' >> /app/docker-entrypoint.sh && \
-    echo 'exec "$@"' >> /app/docker-entrypoint.sh && \
-    chmod +x /app/docker-entrypoint.sh
+# Security hardening: Run as non-privileged system user
+RUN addgroup -S esports && adduser -S apprunner -G esports
+RUN chown -R apprunner:esports /app
+
+USER apprunner
 
 EXPOSE 5000
 
-ENTRYPOINT ["dumb-init", "--", "/app/docker-entrypoint.sh"]
-CMD ["node", "dist/server.js"]
+# Health check probe
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:5000/api/health || exit 1
+
+# Execute Prisma schema sync and launch server
+CMD ["sh", "-c", "npx prisma db push && node dist/server.js"]

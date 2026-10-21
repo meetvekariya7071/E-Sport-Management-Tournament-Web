@@ -16,6 +16,14 @@ router.post(
   GameController.createGame
 );
 
+// Admin-Only: Update game details
+router.put(
+  '/:id',
+  authenticate,
+  authorizeRoles([Roles.ADMIN]),
+  GameController.updateGame
+);
+
 // Admin-Only: Delete game
 router.delete(
   '/:id',

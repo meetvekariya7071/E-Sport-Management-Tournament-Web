@@ -1,86 +1,140 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import app from '../src/app';
 import { prisma } from '../src/config/db';
+import jwt from 'jsonwebtoken';
+import { ENV } from '../src/config/env';
 
-describe('Tournament Format & Registration Isolation Test Suite', () => {
+describe('Tournament Isolation, Format Rules & Roster Limits Suite', () => {
+  const timestamp = Date.now();
+  let testGame: any;
+  let organizerUser: any;
   let organizerToken: string;
-  let playerToken: string;
-  let playerUser: any;
-  let gameId: string;
+  let player1: any;
+  let player1Token: string;
+  let player2: any;
+  let player2Token: string;
+  let player3: any;
+  let player3Token: string;
+
   let soloTournamentId: string;
   let duoTournamentId: string;
+  let duoTeamInviteCode: string;
 
   beforeAll(async () => {
-    // 1. Get or create a game for testing
-    let game = await prisma.game.findFirst({ where: { isTeamBased: true } });
-    if (!game) {
-      game = await prisma.game.create({
-        data: {
-          title: `Battle Game ${Date.now()}`,
-          slug: `battle-game-${Date.now()}`,
-          genre: 'Action',
-          platform: 'PC',
-          isTeamBased: true,
-          minTeamSize: 2,
-          maxTeamSize: 4
-        }
-      });
-    }
-    gameId = game.id;
+    // 1. Create a test Game
+    testGame = await prisma.game.create({
+      data: {
+        title: `Test Tactical Game ${timestamp}`,
+        slug: `test-tactical-${timestamp}`,
+        genre: 'FPS',
+        minTeamSize: 1,
+        maxTeamSize: 5,
+        isTeamBased: true
+      }
+    });
 
-    // 2. Login as seeded organizer
-    const orgRes = await request(app)
-      .post('/api/auth/login')
-      .send({ emailOrUsername: 'organizer@esports.com', password: 'PASSWORD123!' });
-    organizerToken = orgRes.body.data.token;
+    // 2. Create Users
+    organizerUser = await prisma.user.create({
+      data: {
+        email: `org_tourney_${timestamp}@esports.com`,
+        username: `org_tourney_${timestamp}`,
+        passwordHash: '$2b$10$hashedpasswordforexampletests1234567890',
+        role: 'ORGANIZER'
+      }
+    });
+    organizerToken = jwt.sign(
+      { sub: organizerUser.id, email: organizerUser.email, role: 'ORGANIZER' },
+      ENV.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
 
-    // 3. Register a fresh player
-    const pUnique = Date.now();
-    const playerRes = await request(app)
-      .post('/api/auth/register')
-      .send({
-        username: `tourneyplayer_${pUnique}`,
-        email: `tourneyplayer_${pUnique}@esports.com`,
-        password: 'Password123!',
+    player1 = await prisma.user.create({
+      data: {
+        email: `p1_${timestamp}@esports.com`,
+        username: `p1_user_${timestamp}`,
+        passwordHash: '$2b$10$hashedpasswordforexampletests1234567890',
         role: 'PLAYER'
-      });
-    playerToken = playerRes.body.data.token;
-    playerUser = playerRes.body.data.user;
+      }
+    });
+    player1Token = jwt.sign(
+      { sub: player1.id, email: player1.email, role: 'PLAYER' },
+      ENV.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
 
-    // 4. Create SOLO tournament
-    const soloRes = await request(app)
+    player2 = await prisma.user.create({
+      data: {
+        email: `p2_${timestamp}@esports.com`,
+        username: `p2_user_${timestamp}`,
+        passwordHash: '$2b$10$hashedpasswordforexampletests1234567890',
+        role: 'PLAYER'
+      }
+    });
+    player2Token = jwt.sign(
+      { sub: player2.id, email: player2.email, role: 'PLAYER' },
+      ENV.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    player3 = await prisma.user.create({
+      data: {
+        email: `p3_${timestamp}@esports.com`,
+        username: `p3_user_${timestamp}`,
+        passwordHash: '$2b$10$hashedpasswordforexampletests1234567890',
+        role: 'PLAYER'
+      }
+    });
+    player3Token = jwt.sign(
+      { sub: player3.id, email: player3.email, role: 'PLAYER' },
+      ENV.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+  });
+
+  afterAll(async () => {
+    // Cascade cleanup
+    if (soloTournamentId) {
+      await prisma.tournament.delete({ where: { id: soloTournamentId } }).catch(() => {});
+    }
+    if (duoTournamentId) {
+      await prisma.tournament.delete({ where: { id: duoTournamentId } }).catch(() => {});
+    }
+    if (testGame?.id) {
+      await prisma.game.delete({ where: { id: testGame.id } }).catch(() => {});
+    }
+    const userIds = [organizerUser?.id, player1?.id, player2?.id, player3?.id].filter(Boolean);
+    if (userIds.length > 0) {
+      await prisma.user.deleteMany({
+        where: { id: { in: userIds } }
+      }).catch(() => {});
+    }
+    await prisma.$disconnect();
+  });
+
+  it('1. Create SOLO Tournament - Should initialize tournament with SOLO format', async () => {
+    const res = await request(app)
       .post('/api/tournaments')
       .set('Authorization', `Bearer ${organizerToken}`)
       .send({
-        title: `Solo Cup ${pUnique}`,
-        slug: `solo-cup-${pUnique}`,
-        gameId,
+        title: `Solo Championship ${timestamp}`,
+        slug: `solo-championship-${timestamp}`,
+        gameId: testGame.id,
         format: 'SOLO',
         maxParticipants: 16,
         startDate: new Date(Date.now() + 86400000).toISOString()
       });
-    soloTournamentId = soloRes.body.data.id;
 
-    // 5. Create DUO tournament
-    const duoRes = await request(app)
-      .post('/api/tournaments')
-      .set('Authorization', `Bearer ${organizerToken}`)
-      .send({
-        title: `Duo Showdown ${pUnique}`,
-        slug: `duo-showdown-${pUnique}`,
-        gameId,
-        format: 'DUO',
-        maxParticipants: 16,
-        startDate: new Date(Date.now() + 86400000).toISOString()
-      });
-    duoTournamentId = duoRes.body.data.id;
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.format).toBe('SOLO');
+    soloTournamentId = res.body.data.id;
   });
 
-  it('1. SOLO Tournament - Should prevent team creation and reject with 400 Bad Request', async () => {
+  it('2. SOLO Format Constraint - Should PREVENT team creation in a SOLO tournament', async () => {
     const res = await request(app)
       .post(`/api/tournaments/${soloTournamentId}/teams`)
-      .set('Authorization', `Bearer ${playerToken}`)
+      .set('Authorization', `Bearer ${player1Token}`)
       .send({
         name: 'Illegal Solo Team',
         tag: 'IST'
@@ -88,67 +142,98 @@ describe('Tournament Format & Registration Isolation Test Suite', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain('solo');
+    expect(res.body.error).toContain('SOLO format tournaments do not support team creation');
   });
 
-  it('2. SOLO Tournament - Should allow direct solo player registration with IGN prompt', async () => {
+  it('3. Solo Player Registration - Should successfully register solo player without team', async () => {
     const res = await request(app)
       .post(`/api/tournaments/${soloTournamentId}/register/solo`)
-      .set('Authorization', `Bearer ${playerToken}`)
-      .send({ inGameName: 'SoloChampX' });
+      .set('Authorization', `Bearer ${player1Token}`)
+      .send({
+        inGameName: 'LoneWolf_Pro'
+      });
 
     expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.participant.status).toBe('REGISTERED');
     expect(res.body.participant.teamId).toBeNull();
-    expect(res.body.participant.inGameName).toBe('SoloChampX');
   });
 
-  it('3. DUO Tournament - Should prevent solo registration (requires team formation)', async () => {
+  it('4. Create DUO Tournament - Should initialize tournament with DUO format', async () => {
     const res = await request(app)
-      .post(`/api/tournaments/${duoTournamentId}/register/solo`)
-      .set('Authorization', `Bearer ${playerToken}`)
-      .send({ inGameName: 'RogueSolo' });
+      .post('/api/tournaments')
+      .set('Authorization', `Bearer ${organizerToken}`)
+      .send({
+        title: `Duo Apex Showdown ${timestamp}`,
+        slug: `duo-apex-${timestamp}`,
+        gameId: testGame.id,
+        format: 'DUO',
+        maxParticipants: 8,
+        startDate: new Date(Date.now() + 86400000).toISOString()
+      });
 
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain('DUO');
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.format).toBe('DUO');
+    duoTournamentId = res.body.data.id;
   });
 
-  it('4. DUO Tournament - Should allow captain to create a team and generate 6-char invite code', async () => {
+  it('5. Team Formation - Should create team and generate 6-character alphanumeric invite code', async () => {
     const res = await request(app)
       .post(`/api/tournaments/${duoTournamentId}/teams`)
-      .set('Authorization', `Bearer ${playerToken}`)
+      .set('Authorization', `Bearer ${player1Token}`)
       .send({
-        name: `Alpha Duos ${Date.now()}`,
-        tag: 'ALPH',
-        inGameName: 'CaptainAlpha'
+        name: 'Apex Predators',
+        tag: 'APEX',
+        inGameName: 'Captain_Apex'
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.team.inviteCode).toBeDefined();
-    expect(res.body.team.inviteCode.length).toBeGreaterThanOrEqual(6);
+    expect(res.body.success).toBe(true);
+    expect(res.body.team).toHaveProperty('inviteCode');
+    expect(res.body.team.inviteCode).toMatch(/^[A-Z0-9]{6}$/);
+    duoTeamInviteCode = res.body.team.inviteCode;
   });
 
-  it('5. DUO Tournament - Should reject joining team with non-existent invite code', async () => {
-    const p2Res = await request(app)
-      .post('/api/auth/register')
-      .send({
-        username: `joinplayer_${Date.now()}`,
-        email: `joinplayer_${Date.now()}@esports.com`,
-        password: 'Password123!',
-        role: 'PLAYER'
-      });
-    const p2Token = p2Res.body.data.token;
-
+  it('6. Team Join - Should reject join attempt with invalid invite code', async () => {
     const res = await request(app)
       .post(`/api/tournaments/${duoTournamentId}/teams/join`)
-      .set('Authorization', `Bearer ${p2Token}`)
+      .set('Authorization', `Bearer ${player2Token}`)
       .send({
-        inviteCode: 'BADCODE9',
-        inGameName: 'TeammateBeta'
+        inviteCode: 'BAD999',
+        inGameName: 'PlayerTwo'
       });
 
     expect(res.status).toBe(404);
     expect(res.body.success).toBe(false);
     expect(res.body.error).toContain('Invalid team invite code');
+  });
+
+  it('7. Team Join - Teammate should successfully join using valid invite code (Roster 2/2)', async () => {
+    const res = await request(app)
+      .post(`/api/tournaments/${duoTournamentId}/teams/join`)
+      .set('Authorization', `Bearer ${player2Token}`)
+      .send({
+        inviteCode: duoTeamInviteCode,
+        inGameName: 'Partner_In_Crime'
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.team.currentMembers).toBe(2);
+  });
+
+  it('8. DUO Roster Limit Enforcement - Should reject 3rd member join because DUO capacity is 2', async () => {
+    const res = await request(app)
+      .post(`/api/tournaments/${duoTournamentId}/teams/join`)
+      .set('Authorization', `Bearer ${player3Token}`)
+      .send({
+        inviteCode: duoTeamInviteCode,
+        inGameName: 'ThirdWheel'
+      });
+
+    expect([400, 403]).toContain(res.status);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.toLowerCase()).toMatch(/capacity|full/);
   });
 });

@@ -29,9 +29,19 @@ export const TournamentStatuses = {
 
 export type TournamentStatus = (typeof TournamentStatuses)[keyof typeof TournamentStatuses];
 
+export const TournamentLifecycles = {
+  FUTURE: 'FUTURE',
+  REGISTRATION_OPEN: 'REGISTRATION_OPEN',
+  LIVE: 'LIVE',
+  PAST: 'PAST'
+} as const;
+
+export type TournamentLifecycle = (typeof TournamentLifecycles)[keyof typeof TournamentLifecycles];
+
 export const ParticipantStatuses = {
   REGISTERED: 'REGISTERED',
   CHECKED_IN: 'CHECKED_IN',
+  PRESENT: 'PRESENT',
   NO_SHOW: 'NO_SHOW',
   DISQUALIFIED: 'DISQUALIFIED',
   ELIMINATED: 'ELIMINATED'
@@ -49,6 +59,15 @@ export const MatchStatuses = {
 
 export type MatchStatus = (typeof MatchStatuses)[keyof typeof MatchStatuses];
 
+export const TournamentStages = {
+  ROUND_OF_16: 'ROUND_OF_16',
+  QUARTERFINALS: 'QUARTERFINALS',
+  SEMIFINALS: 'SEMIFINALS',
+  FINALS: 'FINALS'
+} as const;
+
+export type TournamentStage = (typeof TournamentStages)[keyof typeof TournamentStages];
+
 export const DisputeStatuses = {
   OPEN: 'OPEN',
   INVESTIGATING: 'INVESTIGATING',
@@ -58,16 +77,28 @@ export const DisputeStatuses = {
 
 export type DisputeStatus = (typeof DisputeStatuses)[keyof typeof DisputeStatuses];
 
+export const DisputeReasons = {
+  CHEATING: 'CHEATING',
+  INCORRECT_SCORE: 'INCORRECT_SCORE',
+  TOXIC_CONDUCT: 'TOXIC_CONDUCT',
+  NO_SHOW: 'NO_SHOW',
+  OTHER: 'OTHER'
+} as const;
+
+export type DisputeReason = (typeof DisputeReasons)[keyof typeof DisputeReasons];
+
 export const NotificationTypes = {
   INVITE: 'INVITE',
   MATCH_START: 'MATCH_START',
   SCORE_UPDATE: 'SCORE_UPDATE',
   BAN: 'BAN',
-  DISPUTE_UPDATE: 'DISPUTE_UPDATE',
-  GENERAL: 'GENERAL'
+  DISPUTE: 'DISPUTE',
+  CHECK_IN: 'CHECK_IN',
+  SYSTEM: 'SYSTEM'
 } as const;
 
 export type NotificationType = (typeof NotificationTypes)[keyof typeof NotificationTypes];
+
 
 // =========================================================================
 // AUTH & CONTEXT INTERFACES

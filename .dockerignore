@@ -1,11 +1,11 @@
 node_modules
-client
+npm-debug.log
 dist
+.env
 .git
 .gitignore
-.env
-dev.db
-dev.db-journal
 tests
-coverage
-*.log
+vitest.config.ts
+*.db
+*.db-journal
+client

@@ -3,13 +3,11 @@ import { Game } from '../types';
 
 export const gameService = {
   async getAllGames(): Promise<Game[]> {
-    const res = await api.get('/games');
-    const gamesData = Array.isArray(res.data)
-      ? res.data
-      : (Array.isArray(res.data?.data)
-          ? res.data.data
-          : (res.data?.games || []));
-    return gamesData || [];
+    const response = await api.get('/games');
+    const gamesData = Array.isArray(response.data)
+      ? response.data
+      : response.data?.games || response.data?.data || [];
+    return gamesData;
   },
 
   async createGame(data: {

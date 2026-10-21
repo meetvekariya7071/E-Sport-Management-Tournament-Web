@@ -1,98 +1,120 @@
 import { prisma } from '../config/db';
 
-export interface CreateAuditLogDTO {
+export interface CreateAuditLogParams {
   actorId?: string | null;
-  actionType: string;
+  action: string;
   targetEntity: string;
   targetId?: string | null;
-  details?: any;
   ipAddress?: string | null;
-  context?: string | null;
+  details?: Record<string, any> | string;
 }
 
 export class AuditService {
   /**
-   * Log an audit action safely in the background
+   * Records an audit log entry in the system.
    */
-  static async log(dto: CreateAuditLogDTO) {
+  static async log(params: CreateAuditLogParams) {
     try {
-      return await prisma.auditLog.create({
+      const detailsStr =
+        typeof params.details === 'object'
+          ? JSON.stringify(params.details)
+          : params.details || '{}';
+
+      const entry = await prisma.auditLog.create({
         data: {
-          actorId: dto.actorId || null,
-          actionType: dto.actionType,
-          targetEntity: dto.targetEntity,
-          targetId: dto.targetId || null,
-          details: typeof dto.details === 'string' ? dto.details : JSON.stringify(dto.details || {}),
-          ipAddress: dto.ipAddress || null,
-          context: dto.context || null
+          actorId: params.actorId || null,
+          action: params.action,
+          targetEntity: params.targetEntity,
+          targetId: params.targetId || null,
+          ipAddress: params.ipAddress || null,
+          details: detailsStr
         }
       });
+      return entry;
     } catch (err) {
-      console.error('[AuditService.log Error]', err);
+      console.error('[AuditService.log error]:', err);
+      // Non-blocking: audit failure shouldn't crash primary business logic
       return null;
     }
   }
 
   /**
-   * Fetch paginated audit trail for Admin view
+   * Retrieves paginated audit logs with search and filtering for Admin view.
    */
-  static async getLogs(params: {
+  static async getLogs(query: {
     page?: number;
     limit?: number;
-    actionType?: string;
+    action?: string;
     targetEntity?: string;
+    actorId?: string;
     search?: string;
   }) {
-    const page = Math.max(1, Number(params.page) || 1);
-    const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
     const skip = (page - 1) * limit;
 
     const where: any = {};
 
-    if (params.actionType && params.actionType !== 'ALL') {
-      where.actionType = params.actionType;
+    if (query.action) {
+      where.action = query.action;
     }
 
-    if (params.targetEntity && params.targetEntity !== 'ALL') {
-      where.targetEntity = params.targetEntity;
+    if (query.targetEntity) {
+      where.targetEntity = query.targetEntity;
     }
 
-    if (params.search) {
+    if (query.actorId) {
+      where.actorId = query.actorId;
+    }
+
+    if (query.search) {
       where.OR = [
-        { actionType: { contains: params.search } },
-        { targetEntity: { contains: params.search } },
-        { targetId: { contains: params.search } },
-        { actor: { username: { contains: params.search } } },
-        { actor: { email: { contains: params.search } } }
+        { action: { contains: query.search } },
+        { targetEntity: { contains: query.search } },
+        { targetId: { contains: query.search } },
+        { details: { contains: query.search } },
+        { actor: { username: { contains: query.search } } }
       ];
     }
 
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({
         where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
         include: {
           actor: {
             select: {
               id: true,
               username: true,
               email: true,
-              role: true
+              role: true,
+              avatarUrl: true
             }
           }
-        },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip
+        }
       }),
       prisma.auditLog.count({ where })
     ]);
 
     return {
-      items: logs,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit)
+      logs: logs.map((log: any) => ({
+        ...log,
+        details: (() => {
+          try {
+            return JSON.parse(log.details || '{}');
+          } catch {
+            return log.details;
+          }
+        })()
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
     };
   }
 }

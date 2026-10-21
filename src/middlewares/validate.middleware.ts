@@ -1,43 +1,64 @@
 import { Request, Response, NextFunction } from 'express';
-import { AnyZodObject, ZodError } from 'zod';
+import { ZodSchema, ZodError } from 'zod';
 
 /**
- * Validates incoming request (body, query, params) against a Zod schema.
- * Rejects invalid payloads with 400 Bad Request and structured error details.
+ * Express middleware that validates incoming request payloads against a Zod schema.
+ * Rejects invalid, malformed, or injected fields before hitting controllers or database queries.
  */
-export const validateRequest = (schema: AnyZodObject) => {
+export const validateBody = (schema: ZodSchema) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const parsed = await schema.parseAsync({
-        body: req.body,
-        query: req.query,
-        params: req.params
-      });
-
-      // Replace with sanitized/validated data
-      req.body = parsed.body ?? req.body;
-      req.query = parsed.query ?? req.query;
-      req.params = parsed.params ?? req.params;
-
+      req.body = await schema.parseAsync(req.body);
       next();
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const issues = error.errors.map((err) => ({
-          field: err.path.slice(1).join('.'),
-          message: err.message
+    } catch (err: any) {
+      if (err instanceof ZodError) {
+        const issues = err.errors.map((e) => ({
+          field: e.path.join('.'),
+          message: e.message
         }));
 
         res.status(400).json({
           success: false,
-          error: 'Validation failed: ' + issues.map((i) => `${i.field || 'payload'}: ${i.message}`).join(', '),
-          validationErrors: issues
+          error: issues.length === 1 ? issues[0].message : 'Validation failed for request payload',
+          details: issues
         });
         return;
       }
 
       res.status(400).json({
         success: false,
-        error: 'Malformed request payload.'
+        error: 'Malformed request payload'
+      });
+    }
+  };
+};
+
+/**
+ * Express middleware to validate query parameters.
+ */
+export const validateQuery = (schema: ZodSchema) => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      req.query = await schema.parseAsync(req.query);
+      next();
+    } catch (err: any) {
+      if (err instanceof ZodError) {
+        const issues = err.errors.map((e) => ({
+          field: e.path.join('.'),
+          message: e.message
+        }));
+
+        res.status(400).json({
+          success: false,
+          error: issues.length === 1 ? issues[0].message : 'Validation failed for query parameters',
+          details: issues
+        });
+        return;
+      }
+
+      res.status(400).json({
+        success: false,
+        error: 'Malformed query parameters'
       });
     }
   };

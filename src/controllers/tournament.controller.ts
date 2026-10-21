@@ -1,12 +1,10 @@
 import { Request, Response } from 'express';
 import { TournamentService } from '../services/tournament.service';
-import { TournamentFormat } from '../types';
-import { broadcastTournamentEvent } from '../config/socket';
-import { cacheService } from '../services/cache.service';
+import { BracketService } from '../services/bracket.service';
 import { ExportService } from '../services/export.service';
-import { AuditService } from '../services/audit.service';
-import { NotificationService } from '../services/notification.service';
-import { prisma } from '../config/db';
+import { CacheService } from '../services/cache.service';
+import { TournamentFormat } from '../types';
+import { validateTournamentDates } from '../utils/tournamentLifecycle';
 
 export class TournamentController {
   /**
@@ -34,10 +32,29 @@ export class TournamentController {
 
       const organizerId = req.user!.id;
 
-      if (!title || !slug || !gameId || !format || !maxParticipants || !startDate) {
+      if (!title || !slug || !gameId || !format || !maxParticipants || !registrationStartDate || !registrationEndDate || !startDate) {
         res.status(400).json({
           success: false,
-          error: 'Bad Request: title, slug, gameId, format, maxParticipants, and startDate are required.'
+          error: 'Bad Request: title, slug, gameId, format, maxParticipants, registrationStartDate, registrationEndDate, and startDate are required.'
+        });
+        return;
+      }
+
+      // Enforce chronological date validations:
+      // registrationStartDate < registrationEndDate
+      // registrationEndDate <= startDate
+      // startDate < endDate
+      const dateValidation = validateTournamentDates({
+        registrationStartDate,
+        registrationEndDate,
+        startDate,
+        endDate
+      });
+
+      if (!dateValidation.valid) {
+        res.status(400).json({
+          success: false,
+          error: `Bad Request: ${dateValidation.error}`
         });
         return;
       }
@@ -58,18 +75,6 @@ export class TournamentController {
         startDate,
         endDate,
         rules
-      });
-
-      cacheService.invalidatePublicCatalogs();
-
-      // Audit Log
-      await AuditService.log({
-        actorId: organizerId,
-        actionType: 'TOURNAMENT_CREATE',
-        targetEntity: 'TOURNAMENT',
-        targetId: tournament.id,
-        details: { title: tournament.title, format: tournament.format },
-        ipAddress: req.ip || req.socket.remoteAddress
       });
 
       res.status(201).json({
@@ -121,7 +126,6 @@ export class TournamentController {
     try {
       const { id } = req.params;
       const updated = await TournamentService.updateTournament(id, req.user!.id, req.body);
-      cacheService.invalidateTournament(id);
       res.status(200).json({ success: true, message: 'Tournament updated successfully.', data: updated });
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -142,7 +146,6 @@ export class TournamentController {
       const { id } = req.params;
       const isAdmin = req.user!.role === 'ADMIN';
       await TournamentService.deleteTournament(id, req.user!.id, isAdmin);
-      cacheService.invalidateTournament(id);
       res.status(200).json({ success: true, message: 'Tournament deleted successfully.' });
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -197,8 +200,6 @@ export class TournamentController {
         isAdmin
       });
 
-      cacheService.invalidateTournament(id);
-
       res.status(200).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -219,7 +220,6 @@ export class TournamentController {
       const { id } = req.params;
       const isAdmin = req.user!.role === 'ADMIN';
       const completed = await TournamentService.completeTournament(id, req.user!.id, isAdmin);
-      cacheService.invalidateTournament(id);
       res.status(200).json({
         success: true,
         message: 'Tournament has been officially concluded and score database is archived.',
@@ -252,8 +252,6 @@ export class TournamentController {
         actorId,
         reason
       });
-
-      cacheService.invalidateTournament(tournamentId);
 
       res.status(200).json({
         success: true,
@@ -293,7 +291,7 @@ export class TournamentController {
       } else if (error.message.startsWith('CONFLICT:')) {
         res.status(409).json({ success: false, error: error.message.replace('CONFLICT: ', '') });
       } else if (error.message.startsWith('FORBIDDEN:') || error.message.startsWith('CAPACITY_EXCEEDED:')) {
-        res.status(403).json({ success: false, error: error.message.split(': ')[1] });
+        res.status(403).json({ success: false, error: error.message.replace(/^(FORBIDDEN|CAPACITY_EXCEEDED):\s*/, '') });
       } else if (error.message.startsWith('BAD_REQUEST:')) {
         res.status(400).json({ success: false, error: error.message.replace('BAD_REQUEST: ', '') });
       } else {
@@ -349,7 +347,7 @@ export class TournamentController {
       const { inGameName } = req.body;
 
       const result = await TournamentService.registerSolo(tournamentId, userId, inGameName);
-      cacheService.invalidateTournament(tournamentId);
+      CacheService.invalidateTournament(tournamentId);
       res.status(201).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -381,7 +379,7 @@ export class TournamentController {
         tag,
         inGameName
       });
-      cacheService.invalidateTournament(tournamentId);
+      CacheService.invalidateTournament(tournamentId);
       res.status(201).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -412,27 +410,7 @@ export class TournamentController {
         inviteCode,
         inGameName
       });
-      cacheService.invalidateTournament(tournamentId);
-
-      // Notify Team Captain
-      try {
-        const teamRecord = await prisma.team.findUnique({
-          where: { id: result.team.id },
-          select: { captainId: true, name: true }
-        });
-        if (teamRecord && teamRecord.captainId && teamRecord.captainId !== userId) {
-          await NotificationService.send({
-            userId: teamRecord.captainId,
-            title: `Player Joined Your Squad`,
-            message: `${req.user!.username} joined team "${teamRecord.name}".`,
-            type: 'INVITE',
-            link: `/player/my-tournaments`
-          });
-        }
-      } catch (err) {
-        console.error('[Notification Error in joinTeam]', err);
-      }
-
+      CacheService.invalidateTournament(tournamentId);
       res.status(200).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -440,7 +418,7 @@ export class TournamentController {
       } else if (error.message.startsWith('CONFLICT:')) {
         res.status(409).json({ success: false, error: error.message.replace('CONFLICT: ', '') });
       } else if (error.message.startsWith('FORBIDDEN:') || error.message.startsWith('CAPACITY_EXCEEDED:')) {
-        res.status(403).json({ success: false, error: error.message.split(': ')[1] });
+        res.status(403).json({ success: false, error: error.message.replace(/^(FORBIDDEN|CAPACITY_EXCEEDED):\s*/, '') });
       } else if (error.message.startsWith('BAD_REQUEST:')) {
         res.status(400).json({ success: false, error: error.message.replace('BAD_REQUEST: ', '') });
       } else {
@@ -459,7 +437,7 @@ export class TournamentController {
       const userId = req.user!.id;
 
       const result = await TournamentService.withdrawRegistration(tournamentId, userId);
-      cacheService.invalidateTournament(tournamentId);
+      CacheService.invalidateTournament(tournamentId);
       res.status(200).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -488,51 +466,17 @@ export class TournamentController {
 
   /**
    * POST /api/tournaments/:id/generate-bracket
-   * Generates bracket structure and seeds competitors into Round 1 fixtures.
+   * Generates single elimination or leaderboard points bracket fixtures.
+   * Prevents bracket generation if minimum required participants have not checked in.
    */
   static async generateBracket(req: Request, res: Response): Promise<void> {
     try {
-      const tournamentId = req.params.id;
-      const actorId = req.user!.id;
+      const { id } = req.params;
+      const userId = req.user!.id;
       const isAdmin = req.user!.role === 'ADMIN';
 
-      const result = await TournamentService.generateBracket(tournamentId, actorId, isAdmin);
-      cacheService.invalidateTournament(tournamentId);
-
-      // Real-time broadcasts
-      const bracket = await TournamentService.getBracket(tournamentId);
-      broadcastTournamentEvent(tournamentId, 'bracket:advance', bracket);
-
-      const leaderboard = await TournamentService.getLeaderboard(tournamentId);
-      broadcastTournamentEvent(tournamentId, 'leaderboard:refresh', leaderboard);
-
-      // Notify active participants that brackets are live
-      try {
-        const participants = await prisma.tournamentParticipant.findMany({
-          where: { tournamentId },
-          select: { userId: true }
-        });
-        const userIds = participants.map((p) => p.userId);
-        await NotificationService.sendBulk(userIds, {
-          title: 'Tournament Brackets Live!',
-          message: 'Match fixtures have been scheduled. Check your bracket and match schedule now.',
-          type: 'MATCH_START',
-          link: `/tournaments/${tournamentId}`
-        });
-      } catch (notifyErr) {
-        console.error('[Notification Error in generateBracket]', notifyErr);
-      }
-
-      // Audit Log
-      await AuditService.log({
-        actorId,
-        actionType: 'BRACKET_GENERATE',
-        targetEntity: 'TOURNAMENT',
-        targetId: tournamentId,
-        details: { totalCompetitors: result.totalCompetitors },
-        ipAddress: req.ip || req.socket.remoteAddress
-      });
-
+      const result = await BracketService.generateBracket(id, userId, isAdmin);
+      CacheService.invalidateTournament(id);
       res.status(201).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
@@ -542,88 +486,63 @@ export class TournamentController {
       } else if (error.message.startsWith('BAD_REQUEST:')) {
         res.status(400).json({ success: false, error: error.message.replace('BAD_REQUEST: ', '') });
       } else {
-        res.status(500).json({ success: false, error: error.message || 'Failed to generate bracket.' });
+        res.status(500).json({ success: false, error: error.message || 'Bracket generation failed.' });
+      }
+    }
+  }
+
+  /**
+   * GET /api/tournaments/:id/bracket
+   * Returns structured match tree for frontend visualizer rendering.
+   */
+  static async getTournamentBracket(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const bracket = await BracketService.getTournamentBracket(id);
+      res.status(200).json({ success: true, data: bracket });
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Failed to fetch bracket.' });
       }
     }
   }
 
   /**
    * PUT /api/tournaments/:id/matches/:matchId
-   * Commits match scores, automatically determines round winners, and creates next-round fixtures.
+   * Commits match scores, automatically determines round winners, creates next-round fixtures,
+   * and broadcasts real-time WebSocket events.
    */
   static async updateMatchScore(req: Request, res: Response): Promise<void> {
     try {
-      const tournamentId = req.params.id;
-      const matchId = req.params.matchId;
-      const actorId = req.user!.id;
+      const { id, matchId } = req.params;
+      const { scores } = req.body;
+      const userId = req.user!.id;
       const isAdmin = req.user!.role === 'ADMIN';
-      const { scores, status } = req.body;
 
-      if (!Array.isArray(scores)) {
-        res.status(400).json({ success: false, error: 'Scores array is required.' });
+      if (!Array.isArray(scores) || scores.length === 0) {
+        res.status(400).json({ success: false, error: 'A valid scores array is required.' });
         return;
       }
 
-      const updatedMatch = await TournamentService.updateMatchScore(
-        tournamentId,
+      const result = await BracketService.updateMatchScore({
+        tournamentId: id,
         matchId,
-        actorId,
-        isAdmin,
-        { scores, status }
-      );
-
-      cacheService.invalidateTournament(tournamentId);
-
-      // Broadcast real-time score update
-      broadcastTournamentEvent(tournamentId, 'match:update_score', updatedMatch);
-
-      // Broadcast updated bracket structure
-      const bracket = await TournamentService.getBracket(tournamentId);
-      broadcastTournamentEvent(tournamentId, 'bracket:advance', bracket);
-
-      // Broadcast recalculated leaderboard
-      const leaderboard = await TournamentService.getLeaderboard(tournamentId);
-      broadcastTournamentEvent(tournamentId, 'leaderboard:refresh', leaderboard);
-
-      // Audit Log
-      await AuditService.log({
-        actorId,
-        actionType: 'SCORE_UPDATE',
-        targetEntity: 'MATCH',
-        targetId: matchId,
-        details: { tournamentId, status },
-        ipAddress: req.ip || req.socket.remoteAddress
+        scores,
+        userId,
+        isAdmin
       });
 
-      // Notify match participants of updated score
-      try {
-        if (updatedMatch.results) {
-          for (const resItem of updatedMatch.results) {
-            if (resItem.participant?.user?.id) {
-              await NotificationService.send({
-                userId: resItem.participant.user.id,
-                title: 'Match Score Recorded',
-                message: `Official match score has been updated for Match #${updatedMatch.matchNumber}.`,
-                type: 'SCORE_UPDATE',
-                link: `/tournaments/${tournamentId}`
-              });
-            }
-          }
-        }
-      } catch (notifErr) {
-        console.error('[Notification Error in updateMatchScore]', notifErr);
-      }
-
-      res.status(200).json({
-        success: true,
-        message: 'Match score updated and broadcasted in real time.',
-        data: updatedMatch
-      });
+      CacheService.invalidateTournament(id);
+      res.status(200).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
         res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
       } else if (error.message.startsWith('FORBIDDEN:')) {
         res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      } else if (error.message.startsWith('BAD_REQUEST:')) {
+        res.status(400).json({ success: false, error: error.message.replace('BAD_REQUEST: ', '') });
       } else {
         res.status(500).json({ success: false, error: error.message || 'Failed to update match score.' });
       }
@@ -631,49 +550,101 @@ export class TournamentController {
   }
 
   /**
-   * GET /api/tournaments/:id/bracket
-   * Returns structured match tree for frontend bracket visualizer.
+   * POST /api/tournaments/:id/publish-round
+   * Publishes entire round scoring matrix and fires real-time WebSocket broadcast.
    */
-  static async getBracket(req: Request, res: Response): Promise<void> {
+  static async publishRound(req: Request, res: Response): Promise<void> {
     try {
-      const tournamentId = req.params.id;
-      const bracket = await TournamentService.getBracket(tournamentId);
-      res.status(200).json({ success: true, data: bracket });
+      const { id } = req.params;
+      const { roundId, matchScores } = req.body;
+      const userId = req.user!.id;
+      const isAdmin = req.user!.role === 'ADMIN';
+
+      if (!roundId || !Array.isArray(matchScores)) {
+        res.status(400).json({ success: false, error: 'roundId and matchScores array are required.' });
+        return;
+      }
+
+      const result = await BracketService.publishRound({
+        tournamentId: id,
+        roundId,
+        matchScores,
+        userId,
+        isAdmin
+      });
+
+      CacheService.invalidateTournament(id);
+      res.status(200).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
         res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
       } else {
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: error.message || 'Failed to publish round.' });
       }
     }
   }
 
   /**
-   * GET /api/tournaments/:id/leaderboard
-   * Returns live standings for points / battle royale tournaments.
+   * PATCH /api/tournaments/:id/participants/:participantId/checkin
    */
-  static async getLeaderboard(req: Request, res: Response): Promise<void> {
+  static async checkInParticipant(req: Request, res: Response): Promise<void> {
     try {
-      const tournamentId = req.params.id;
-      const leaderboard = await TournamentService.getLeaderboard(tournamentId);
-      res.status(200).json({ success: true, data: leaderboard });
+      const { id, participantId } = req.params;
+      const userId = req.user!.id;
+      const isAdmin = req.user!.role === 'ADMIN';
+
+      const result = await BracketService.checkInParticipant(id, participantId, userId, isAdmin);
+      CacheService.invalidateTournament(id);
+      res.status(200).json({ success: true, message: 'Participant checked in successfully.', data: result });
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
         res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
       } else {
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: error.message || 'Check-in failed.' });
       }
     }
   }
+
+  /**
+   * POST /api/tournaments/:id/checkin-all
+   */
+  static async bulkCheckIn(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+      const isAdmin = req.user!.role === 'ADMIN';
+
+      const result = await BracketService.bulkCheckIn(id, userId, isAdmin);
+      CacheService.invalidateTournament(id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Bulk check-in failed.' });
+      }
+    }
+  }
+
+  // =========================================================================
+  // SUB-DATABASE STREAMING CSV EXPORT ENDPOINTS
+  // =========================================================================
 
   /**
    * GET /api/tournaments/:id/export/participants
-   * Streams CSV download of participant details (IGN, User Email, Registration Date, Check-in status).
+   * CSV download of participant details (IGN, User Email, Registration Date, Check-in status).
    */
   static async exportParticipants(req: Request, res: Response): Promise<void> {
     try {
-      const tournamentId = req.params.id;
-      const { filename, csv } = await ExportService.exportParticipantsCsv(tournamentId);
+      const { id } = req.params;
+      const { filename, csv } = await ExportService.exportParticipants(id);
+
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.status(200).send(csv);
@@ -681,25 +652,88 @@ export class TournamentController {
       if (error.message.startsWith('NOT_FOUND:')) {
         res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
       } else {
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: error.message || 'Export failed.' });
       }
     }
   }
 
   /**
    * GET /api/tournaments/:id/export/teams
-   * Streams CSV download of team rosters, member slots, and captain information (Duo/Squad only).
+   * CSV download of team rosters, member slots, and captain information (Duo/Squad).
    */
   static async exportTeams(req: Request, res: Response): Promise<void> {
     try {
-      const tournamentId = req.params.id;
-      const { filename, csv } = await ExportService.exportTeamsCsv(tournamentId);
+      const { id } = req.params;
+      const { filename, csv } = await ExportService.exportTeams(id);
+
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.status(200).send(csv);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
         res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('BAD_REQUEST:')) {
+        res.status(400).json({ success: false, error: error.message.replace('BAD_REQUEST: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Export failed.' });
+      }
+    }
+  }
+
+  /**
+   * GET /api/tournaments/:id/export/scores
+   * CSV/Spreadsheet download of final match placements, kill counts, and aggregate points.
+   */
+  static async exportScores(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { filename, csv } = await ExportService.exportScores(id);
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.status(200).send(csv);
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Export failed.' });
+      }
+    }
+  }
+
+  /**
+   * PATCH /api/tournaments/:id/tie-breakers
+   * Updates tournament tie-breaker priority configuration.
+   */
+  static async updateTieBreakerRules(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const tieBreakerRules = req.body.tieBreakerRules || req.body.rules;
+      const userId = req.user!.id;
+      const isAdmin = req.user!.role === 'ADMIN';
+
+      if (!Array.isArray(tieBreakerRules) || tieBreakerRules.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: 'Bad Request: tieBreakerRules must be a non-empty array of rule names.'
+        });
+        return;
+      }
+
+      const result = await BracketService.updateTieBreakerRules({
+        tournamentId: id,
+        rules: tieBreakerRules,
+        userId,
+        isAdmin
+      });
+
+      CacheService.invalidateTournament(id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
       } else {
         res.status(500).json({ success: false, error: error.message });
       }
@@ -707,22 +741,230 @@ export class TournamentController {
   }
 
   /**
-   * GET /api/tournaments/:id/export/scores
-   * Streams CSV download of final match placements, kill counts, and aggregate points.
+   * POST /api/tournaments/:id/matches/:matchId/walkover
+   * Awards Walkover / Bye to an advancing participant in an elimination bracket.
    */
-  static async exportScores(req: Request, res: Response): Promise<void> {
+  static async awardWalkover(req: Request, res: Response): Promise<void> {
     try {
-      const tournamentId = req.params.id;
-      const { filename, csv } = await ExportService.exportScoresCsv(tournamentId);
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.status(200).send(csv);
+      const { id, matchId } = req.params;
+      const { winnerParticipantId, forfeitParticipantId, reason } = req.body;
+      const userId = req.user!.id;
+      const isAdmin = req.user!.role === 'ADMIN';
+
+      if (!winnerParticipantId || !reason) {
+        res.status(400).json({
+          success: false,
+          error: 'Bad Request: winnerParticipantId and reason are required.'
+        });
+        return;
+      }
+
+      const result = await BracketService.awardWalkover({
+        tournamentId: id,
+        matchId,
+        winnerParticipantId,
+        forfeitParticipantId,
+        reason,
+        userId,
+        isAdmin
+      });
+
+      CacheService.invalidateTournament(id);
+      res.status(200).json(result);
     } catch (error: any) {
       if (error.message.startsWith('NOT_FOUND:')) {
         res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      } else if (error.message.startsWith('BAD_REQUEST:')) {
+        res.status(400).json({ success: false, error: error.message.replace('BAD_REQUEST: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    }
+  }
+
+  /**
+   * POST /api/tournaments/:id/matches/:matchId/rollback
+   * Rolls back an erroneous match result and cleans up downstream fixtures.
+   */
+  static async rollbackMatch(req: Request, res: Response): Promise<void> {
+    try {
+      const { id, matchId } = req.params;
+      const userId = req.user!.id;
+      const isAdmin = req.user!.role === 'ADMIN';
+
+      const result = await BracketService.rollbackMatch({
+        tournamentId: id,
+        matchId,
+        userId,
+        isAdmin
+      });
+
+      CacheService.invalidateTournament(id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      } else if (error.message.startsWith('BAD_REQUEST:')) {
+        res.status(400).json({ success: false, error: error.message.replace('BAD_REQUEST: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    }
+  }
+
+  /**
+   * POST /api/tournaments/:id/rounds/:roundId/rollback
+   * Rolls back an entire round.
+   */
+  static async rollbackRound(req: Request, res: Response): Promise<void> {
+    try {
+      const { id, roundId } = req.params;
+      const userId = req.user!.id;
+      const isAdmin = req.user!.role === 'ADMIN';
+
+      const result = await BracketService.rollbackRound({
+        tournamentId: id,
+        roundId,
+        userId,
+        isAdmin
+      });
+
+      CacheService.invalidateTournament(id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    }
+  }
+
+  /**
+   * POST /api/tournaments/:id/teams/:teamId/substitute
+   * Swaps an inactive player with an active substitute.
+   */
+  static async substituteTeamPlayer(req: Request, res: Response): Promise<void> {
+    try {
+      const { id, teamId } = req.params;
+      const outgoingUserId = req.body.outgoingUserId || req.body.outUserId;
+      const incomingIdentifier = req.body.incomingIdentifier || req.body.substituteEmailOrUsername || req.body.substituteIdentifier;
+      const inGameName = req.body.inGameName || req.body.substituteIgn;
+      const userId = req.user!.id;
+      const isAdmin = req.user!.role === 'ADMIN';
+
+      if (!outgoingUserId || !incomingIdentifier) {
+        res.status(400).json({
+          success: false,
+          error: 'Bad Request: outgoingUserId and incomingIdentifier (email, username, or id) are required.'
+        });
+        return;
+      }
+
+      const result = await BracketService.substituteTeamPlayer({
+        tournamentId: id,
+        teamId,
+        outgoingUserId,
+        incomingIdentifier,
+        inGameName,
+        userId,
+        isAdmin
+      });
+
+      CacheService.invalidateTournament(id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      } else if (error.message.startsWith('BAD_REQUEST:')) {
+        res.status(400).json({ success: false, error: error.message.replace('BAD_REQUEST: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    }
+  }
+
+  /**
+   * POST /api/tournaments/:id/matches/:matchId/credentials
+   * Distributes custom match room credentials (Room ID, Password, Instructions).
+   */
+  static async setMatchCredentials(req: Request, res: Response): Promise<void> {
+    try {
+      const { id, matchId } = req.params;
+      const { customRoomId, customRoomPassword, roomInstructions } = req.body;
+      const userId = req.user!.id;
+      const role = req.user!.role;
+
+      if (!customRoomId) {
+        res.status(400).json({
+          success: false,
+          error: 'Bad Request: customRoomId (e.g., Server Name or Room ID) is required.'
+        });
+        return;
+      }
+
+      const result = await BracketService.setMatchCredentials({
+        tournamentId: id,
+        matchId,
+        customRoomId,
+        customRoomPassword,
+        roomInstructions,
+        userId,
+        role
+      });
+
+      CacheService.invalidateTournament(id);
+      res.status(200).json(result);
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    }
+  }
+
+  /**
+   * GET /api/tournaments/:id/matches/:matchId/credentials
+   * Retrieves match credentials with participant & completion safeguards.
+   */
+  static async getMatchCredentials(req: Request, res: Response): Promise<void> {
+    try {
+      const { id, matchId } = req.params;
+      const userId = req.user!.id;
+      const role = req.user!.role;
+
+      const result = await BracketService.getMatchCredentials({
+        tournamentId: id,
+        matchId,
+        userId,
+        role
+      });
+
+      res.status(200).json({
+        success: true,
+        ...result
+      });
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
       } else {
         res.status(500).json({ success: false, error: error.message });
       }
     }
   }
 }
+
+

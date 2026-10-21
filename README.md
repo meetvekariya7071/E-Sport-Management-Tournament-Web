@@ -1,234 +1,308 @@
 # 🏆 E-Sports Tournament Management System (ETMS)
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-22.x-green.svg)](https://nodejs.org/)
-[![React](https://img.shields.io/badge/React-18-cyan.svg)](https://reactjs.org/)
-[![Vite](https://img.shields.io/badge/Vite-5.4-purple.svg)](https://vitejs.dev/)
-[![Prisma](https://img.shields.io/badge/Prisma-5.22-indigo.svg)](https://www.prisma.io/)
-[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg)](https://tailwindcss.com/)
-[![Socket.io](https://img.shields.io/badge/Socket.io-4.8-black.svg)](https://socket.io/)
-[![Vitest](https://img.shields.io/badge/Vitest-5.0-yellow.svg)](https://vitest.dev/)
-
-A full-stack, enterprise-grade E-Sports Tournament Management System built with a high-performance Node.js / Express backend, Prisma ORM, real-time WebSockets, and a cyber-themed React client. Supports automated tournament seeding, single-elimination brackets, battle royale multi-round leaderboards, role-based access control (Admin, Organizer, Referee, Player), match dispute resolution, referee score verification, and live telemetry health monitoring.
+A production-ready, full-stack E-Sports Tournament Management Platform engineered for organizing competitive gaming events across diverse tournament formats (**SOLO**, **DUO**, **SQUAD**). Features real-time bracket orchestration, live leaderboards, role-based access control (RBAC), match dispute resolution, referee score verification, and live telemetry health monitoring.
 
 ---
 
-## ⚡ Quick Start Guide
+## ⚡ Key Architectural Highlights
+
+- **Backend Architecture**: Node.js, Express, TypeScript, Prisma ORM, Socket.IO, Helmet, Express-Rate-Limit, Node-Cache.
+- **Frontend Architecture**: React 18, Vite, TypeScript, TailwindCSS, Lucide Icons, Axios Interceptors, Real-Time Socket.IO Client.
+- **Tournament Formats**:
+  - **SOLO Battle Royale**: Multi-round aggregate scoring (Placement Points + Kill Points) with strictly zero team instantiation.
+  - **DUO Knockout**: Paired team rosters with unique invite codes and partner join links.
+  - **SQUAD Elimination**: Bracket generation with Quarterfinals, Semifinals, and Finals, official referee match verification, and dispute resolution workflows.
+- **Zero-Latency Telemetry**: Live system health endpoint (`GET /api/health`), database ping latency measurement, active WebSocket connections tracking, and in-memory cache monitoring.
+- **Fault-Tolerant UX**: Centralized API error structure and global React Error Boundary fallback screen with gaming-themed HUD.
+
+---
+
+## 🚀 Step-by-Step Setup from Scratch
 
 ### 1. Prerequisites
-- **Node.js**: v18.x, v20.x, or v22.x
-- **npm**: v9.x or later
-- **Docker & Docker Compose** *(Optional, for containerized deployment)*
+- **Node.js**: v18.x or v20.x+
+- **npm**: v9.x+
+- **Docker & Docker Compose** *(Optional, for containerized deployments)*
 
 ---
 
-### 2. Step-by-Step Installation from Scratch
+### 2. Clone & Install Dependencies
 
-#### Step 2.1: Clone and Install Dependencies
+Install root backend dependencies:
 ```bash
-# In the 4th_Pro repository root:
 npm install
-
-# Install client dependencies:
-cd client
-npm install
-cd ..
 ```
-*(On Windows systems where PowerShell execution policy is restricted, prefix commands with `cmd /c`)*
 
-#### Step 2.2: Environment Setup
-Ensure `.env` exists in the root:
+Install frontend client dependencies:
+```bash
+npm --prefix client install
+```
+
+---
+
+### 3. Environment Configuration
+
+Create `.env` file in the root directory:
+```bash
+cp .env.example .env
+```
+
+Ensure your `.env` contains:
 ```env
 PORT=5000
 NODE_ENV=development
-DATABASE_URL="file:./dev.db"
-JWT_SECRET=super_secret_jwt_production_ready_esports_key_2026
-JWT_EXPIRES_IN=24h
-CORS_ORIGIN=http://localhost:3000
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
+JWT_SECRET=super_secure_production_jwt_secret_esports_2026
+JWT_EXPIRES_IN=7d
+DATABASE_URL=file:./dev.db
+CORS_ORIGIN=http://localhost:3000,http://localhost:5173
 ```
 
-Ensure `client/.env` exists for Vite:
-```env
-VITE_API_URL=http://localhost:5000/api
-VITE_SOCKET_URL=http://localhost:5000
-```
+---
 
-#### Step 2.3: Database Migrations & Automated Seeding
+### 4. Database Setup & Automated Seeding
+
+Generate Prisma client, push database schema, and seed realistic demo records:
+
 ```bash
-# Push database schema with Prisma
+# 1. Generate Prisma Client
+npm run prisma:generate
+
+# 2. Push schema to database
 npm run prisma:push
 
-# Run the comprehensive database seeder (populates Admin, Organizers, Referee, 20 Players, Games & Tournaments)
+# 3. Seed realistic demo data across all 4 roles & tournament formats
 npm run prisma:seed
 ```
 
-#### Step 2.4: Launch Development Servers
-Start both backend and frontend servers:
+---
 
-**Backend API (`http://localhost:5000`):**
+### 5. Launch Development Servers
+
+Start backend and frontend concurrently in two terminals:
+
+**Terminal 1 — Backend API & WebSockets (`http://localhost:5000`):**
 ```bash
 npm run dev
 ```
 
-**Frontend Client (`http://localhost:3000`):**
+**Terminal 2 — Frontend Client (`http://localhost:3000`):**
 ```bash
 npm run client:dev
-# or: cd client && npm run dev
 ```
+*(Or navigate to `client/` and run `npm run dev`)*
 
-Visit **`http://localhost:3000`** in your browser.
+Access the application in your browser at **`http://localhost:3000`**.
 
 ---
 
-## 🐳 Docker Deployment Quick-Start
+### 6. Production Builds & Verification
 
-To run the entire stack (PostgreSQL database, Backend API, and Frontend Client) using Docker Compose:
+To verify full production compilation with zero errors:
 
 ```bash
-# Build and start all production containers
-docker compose up --build
+# Verify backend TypeScript compilation
+npm run build
 
-# Run in background daemon mode
-docker compose up -d
+# Verify frontend production bundle
+npm run client:build
 
-# Stop all containers
-docker compose down
+# Run full automated test suite (33 tests)
+npm run test
 ```
-
-The application will be accessible at:
-- **Web Application Client**: `http://localhost:3000`
-- **Backend API Server**: `http://localhost:5000`
-- **Health Check Endpoint**: `http://localhost:5000/api/health`
 
 ---
 
 ## 🔐 Default Demo Accounts & Credentials
 
-The database seeder (`npm run prisma:seed`) populates the clean quick-login demo accounts with password **`PASSWORD123!`**:
+The database seeder (`prisma/seed.ts`) automatically populates test accounts across all system roles:
 
-| Role | Email / Login ID | Username | Password | Access Rights & Portals |
+| Role | Email | Password | Gamertag / In-Game Name | Permissions |
 |---|---|---|---|---|
-| **Super Admin** | `admin@esports.com` | `admin` | `PASSWORD123!` | `/admin` — System Status Widget, Game catalog CRUD, User ban/unban management, Global audit trail |
-| **Organizer** | `organizer@esports.com` | `organizer` | `PASSWORD123!` | `/organizer` — Create tournaments, live match scoring console, tournament sub-databases |
-| **Player 1 (Solo)** | `player1@esports.com` | `player1` | `PASSWORD123!` | `/player` — SOLO Battle Royale leaderboards, Apex Duo Captain |
-| **Player 2 (Partner)**| `player2@esports.com` | `player2` | `PASSWORD123!` | `/player` — Apex Duo tactical partner (`DUO101`) |
-| **Referee** | `referee@esports.com` | `referee` | `PASSWORD123!` | `/referee/dashboard` — Check-in checklist (Present/No Show/DQ), scorecard verification |
+| **SUPER ADMIN** | `admin@esports.com` | `Admin@12345` | `ApexAdmin` | Global authority: user moderation, game catalog CRUD, system telemetry, dispute oversight. |
+| **ORGANIZER 1** | `org1@esports.com` | `Password@123` | `NexusHost` | Create & manage tournaments, seed brackets, publish matches, disqualify participants. |
+| **ORGANIZER 2** | `org2@esports.com` | `Password@123` | `VortexOps` | Host events, manage tournament sub-databases, export participant CSVs. |
+| **REFEREE** | `ref1@esports.com` | `Password@123` | `JudgeDredd` | Match assignment portal, scorecard verification, player check-in verification, dispute resolution. |
+| **PLAYER 1-20** | `player1@esports.com` through `player20@esports.com` | `Password@123` | `ShadowViper`, `NovaBlast`, `Krypton99`, `ValkyrieX`, `PhantomStrike`, `BlazeFury`, `FrostByte`, etc. | Solo registration, Duo/Squad team formation, match disputes, live score tracking. |
 
 ---
 
-## 🎮 Pre-Seeded Tournaments (All by Demo Organizer)
+## 🎮 Seeded Games & Tournaments
 
-1. **Solo Apex Battlegrounds Championship (BGMI / PUBG Mobile)**
-   - Format: `SOLO` (Status: `COMPLETED`)
-   - Sub-database structure: Contains participant entries for Player 1 and a score table. **Strictly 0 team records generated.**
-   - Verified scorecard by referee.
+### 1. Games Catalog
+1. **Valorant** — Tactical 5v5 Hero Shooter (Genre: Tactical FPS, Formats: SQUAD).
+2. **BGMI / PUBG Mobile** — 100-Player Battle Royale (Genre: Battle Royale, Formats: SOLO, DUO, SQUAD).
+3. **Rocket League** — High-Octane Vehicular Soccer (Genre: Sports / Action, Formats: SOLO, DUO, SQUAD).
 
-2. **Rocket League Duo Clash Series (Rocket League)**
-   - Format: `DUO` (Status: `IN_PROGRESS`)
-   - Sub-database structure: Contains a Team record linking Player 1 and Player 2 (`Apex Duo`, invite code `DUO101`), checked-in participants, and verified match scorecards.
-
-3. **CS2 Masters Squad Invitational (Counter-Strike 2)**
-   - Format: `SQUAD` (Status: `REGISTRATION_OPEN`)
-   - Sub-database structure: Clean slate with 16 open slots ready for squad team formation and registrations.
+### 2. Tournaments Populated by Seeder
+- **BGMI Pro Solo Showdown (SOLO Battle Royale)**:
+  - Format: `SOLO`, Points / Battle Royale scoring.
+  - 16 registered solo participants (`TournamentParticipant.teamId` is strictly `null`; **zero Team records created**).
+  - 3 completed match rounds with rank and kill points aggregated into live leaderboard standings.
+- **Rocket League 2v2 Duo Clash (DUO Knockout)**:
+  - Format: `DUO`, Single Elimination.
+  - 8 paired teams with team invite codes (e.g., `RL-DUO-01`, `RL-DUO-02`) and 16 linked participants.
+- **Valorant Masters Invitational (SQUAD Elimination)**:
+  - Format: `SQUAD`, Single Elimination bracket.
+  - 4 full 4-player rosters: *Sentinels Prime*, *Fnatic Reborn*, *Paper Rex Elite*, *LOUD Velocity*.
+  - Bracket matches (Semifinals & Finals) with live round scores and official referee verification by `ref1@esports.com`.
 
 ---
 
-## 🩺 Production Health Monitoring & Telemetry
+## 🩺 Production Health Checks & Monitoring
 
-### Endpoint: `GET /api/health`
-Returns live system metrics without requiring authentication:
+### `GET /api/health`
+Monitors database connectivity, active WebSocket connections, in-memory cache health, and system resource consumption.
+
+#### Response Payload (`200 OK`):
 ```json
 {
-  "status": "online",
-  "service": "Esports Tournament Management API",
-  "timestamp": "2026-10-19T17:19:57.284Z",
-  "uptime": {
-    "seconds": 933,
-    "formatted": "0h 15m 33s"
-  },
+  "status": "healthy",
+  "timestamp": "2026-10-19T14:45:00.000Z",
+  "uptime": 1420.55,
   "database": {
-    "status": "healthy",
-    "latencyMs": 1,
-    "provider": "SQLite (Prisma ORM)"
+    "status": "connected",
+    "pingMs": 2.14
   },
-  "websocket": {
+  "websockets": {
     "status": "active",
-    "activeConnections": 1
+    "connectedClients": 14
   },
   "cache": {
-    "status": "active",
-    "activeKeys": 4,
-    "hits": 18,
-    "misses": 7
+    "status": "operational",
+    "keys": 8,
+    "hits": 142,
+    "misses": 18,
+    "hitRate": "88.75%"
   },
   "memory": {
-    "rss": "108 MB",
-    "heapUsed": "22 MB",
-    "heapTotal": "24 MB"
+    "rss": "85.24 MB",
+    "heapTotal": "52.18 MB",
+    "heapUsed": "38.64 MB"
   },
-  "responseTimeMs": 1
+  "system": {
+    "nodeVersion": "v20.18.0",
+    "platform": "win32"
+  }
 }
 ```
 
-### Admin System Status Widget
-Located directly on `/admin` dashboard:
-- Live database ping latency with green/amber/red pulse badges.
-- Active Socket.io real-time client counter.
-- In-memory cache hit ratio and key counts.
-- Process RSS and Heap memory meters.
-- Auto-refreshing interval (every 15s) + Instant Manual Refresh trigger.
+### Admin Live Telemetry Widget
+Located on the **`/admin`** dashboard:
+- **Database Latency**: Real-time ping in milliseconds with status badge (`Online` / `Degraded`).
+- **Live Sockets**: Real-time connected players and spectator sessions count.
+- **Cache Hit Rate**: Performance ratio of in-memory query cache.
+- **Memory Footprint**: Active process heap and RSS memory consumption.
 
 ---
 
-## 🛡️ Standardized Error Handling & UX
+## 🛡️ Error Handling & UI Resilience
 
-### Centralized API Error Response Formatter
-All backend failures return a consistent JSON payload:
+### 1. Centralized API Error Response Formatter
+All backend exceptions, validation failures, and authorization denials return a uniform JSON schema:
+
 ```json
 {
   "success": false,
-  "message": "Human-readable error description",
+  "message": "Tournament participant not found or access denied.",
   "errorCode": "RESOURCE_NOT_FOUND",
   "details": null
 }
 ```
 
-### Global UI Error Boundary
-- Built-in React error boundary (`client/src/components/ErrorBoundary.tsx`) catching unhandled render exceptions.
-- Displays a gaming fallback screen featuring:
-  - Error diagnostics details toggle
-  - 'Return to Home' CTA
-  - 'Reboot System' reload button
-- Responsive mobile drawer navigation with dark glassmorphism and animated hamburgers.
-- Global toast alert system (`useToast()`) providing instant audio-visual cues on tournament registration, team creation, team joining, score publishing, and administrative disciplinary notices.
+Standard error codes implemented:
+- `VALIDATION_ERROR` (400)
+- `AUTHENTICATION_REQUIRED` (401)
+- `FORBIDDEN_ACCESS` (403)
+- `ACCOUNT_BANNED` (403)
+- `RESOURCE_NOT_FOUND` (404)
+- `ENDPOINT_NOT_FOUND` (404)
+- `RATE_LIMIT_EXCEEDED` (429)
+- `INTERNAL_SERVER_ERROR` (500)
+
+### 2. Global React Error Boundary (`client/src/components/ErrorBoundary.tsx`)
+Intercepts unhandled React rendering exceptions gracefully without crashing the browser tab:
+- Renders a cyber-themed gaming HUD fallback screen.
+- Displays exception diagnostics (`name`, `message`, and sanitized component stack trace).
+- Provides immediate recovery actions: **"Reload Arena"** and **"Return to Home"**.
 
 ---
 
-## 🧪 Automated Testing & Verification
+## 🐳 Docker Quick-Start (Containerized Deployment)
 
-Run the full Vitest backend test suite:
+Deploy the entire multi-container production stack with a single command:
+
 ```bash
-npm test
+docker compose up --build
 ```
-**Test Coverage (28/28 Passing):**
-- `tests/auth.test.ts`: User registration, unique constraints, credential login, password hashing, and token verification.
-- `tests/tournaments.test.ts`: SOLO vs DUO/SQUAD isolation, invite-code generation, and roster capacity checks.
-- `tests/rbac.test.ts`: RBAC permission guards, organizer ownership boundaries, and admin super-user capabilities.
-- `tests/referee_disputes_audit.test.ts`: Referee match verification, player dispute ticketing, and platform audit trail logging.
 
-### Verify Production Builds
+### Services Provisioned:
+1. **`etms_postgres`**: PostgreSQL 16 Alpine container with persistent volume and automatic healthcheck.
+2. **`etms_redis`**: Redis 7 Alpine cache store.
+3. **`etms_backend`**: Node.js Express multi-stage container running production TypeScript build.
+4. **`etms_frontend`**: Nginx Alpine container serving optimized Vite static bundle with reverse proxying.
+
+To run detached in background:
 ```bash
-# Build backend
-npm run build
-
-# Build client
-npm run client:build
+docker compose up -d
 ```
-Both compile with **zero TypeScript errors and zero lint warnings**.
+
+To stop containers:
+```bash
+docker compose down
+```
 
 ---
 
-## 📜 License
-Licensed under the [ISC License](LICENSE).
+## 🧪 Automated Testing Suite
+
+Run all test suites covering Authentication, Role-Based Access Control, Tournament Isolation, and Referee Dispute Resolution:
+
+```bash
+npm run test
+```
+
+### Test Coverage Highlights:
+- **`tests/auth.test.ts`**: Password hashing, JWT generation, login rate limiting, role assignments.
+- **`tests/rbac.test.ts`**: Admin, Organizer, Player, and Referee permission checks, user ban enforcement.
+- **`tests/tournaments.test.ts`**: SOLO vs DUO/SQUAD isolation, team invite codes, roster limit enforcement.
+- **`tests/referee-disputes.test.ts`**: Referee scorecard verification, player disputes ticketing, resolution workflow.
+
+---
+
+## 📁 Repository Directory Layout
+
+```
+4th_Pro/
+├── client/                     # Vite + React 18 Frontend
+│   ├── src/
+│   │   ├── api/                # Axios API services (auth, tournaments, referee, admin)
+│   │   ├── components/         # Navbar, ErrorBoundary, ProtectedRoute, Status Cards
+│   │   ├── context/            # AuthContext & SocketContext
+│   │   ├── pages/              # Admin, Organizer, Player, Referee, Tournament pages
+│   │   ├── types/              # Frontend TypeScript interfaces
+│   │   └── App.tsx             # Route definitions & guards
+│   ├── Dockerfile              # Multi-stage Nginx build
+│   └── nginx.conf              # Nginx SPA fallback & API proxy
+├── prisma/
+│   ├── schema.prisma           # Prisma Schema (SQLite & PostgreSQL compatible)
+│   └── seed.ts                 # Full executable seeder (20 players, 4 roles, 3 formats)
+├── src/
+│   ├── config/                 # DB singleton, environment validation
+│   ├── controllers/            # Route controllers (Auth, Tournaments, Referee, Admin)
+│   ├── middlewares/            # Auth, RBAC, Rate-limit, Global Error Handler
+│   ├── routes/                 # Express REST route definitions
+│   ├── services/               # Core business logic & CacheService
+│   ├── utils/                  # Centralized error formatter & custom AppError
+│   ├── app.ts                  # Express app, health checks & middleware stack
+│   └── server.ts               # HTTP & Socket.IO server entrypoint
+├── tests/                      # Automated Vitest integration test suites
+├── docker-compose.yml          # Production multi-service orchestration
+├── Dockerfile                  # Production backend container definition
+├── package.json                # Project manifests & scripts
+└── README.md                   # System documentation
+```
+
+---
+
+## 📄 License
+This project is licensed under the ISC License.

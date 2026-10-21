@@ -1,79 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { io, Socket } from 'socket.io-client';
 import {
   Bell,
+  Check,
   CheckCheck,
-  UserPlus,
   Trophy,
-  Award,
-  AlertTriangle,
+  ShieldAlert,
+  Flame,
+  UserPlus,
   AlertCircle,
+  Clock,
   ExternalLink,
-  Info
+  X
 } from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
-import { NotificationAPI, NotificationItem } from '../api/notification.service';
+import { notificationApi, NotificationItem } from '../services/notification.service';
 
 export const NotificationBell: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
-
-  const fetchNotifications = async () => {
-    if (!isAuthenticated) return;
-    try {
-      setLoading(true);
-      const data = await NotificationAPI.getNotifications(1, 20);
-      if (data.success) {
-        setNotifications(data.items);
-        setUnreadCount(data.unreadCount);
-      }
-    } catch (err) {
-      console.error('[NotificationBell] Failed to fetch notifications', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!isAuthenticated || !user) return;
-
-    fetchNotifications();
-
-    // Socket real-time connection
-    const socketUrl =
-      window.location.hostname === 'localhost'
-        ? 'http://localhost:5000'
-        : window.location.origin;
-
-    const socket = io(socketUrl, {
-      transports: ['websocket', 'polling'],
-      reconnectionAttempts: 5
-    });
-
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      socket.emit('join_user', user.id);
-    });
-
-    socket.on('notification:new', (newNotification: NotificationItem) => {
-      setNotifications((prev) => [newNotification, ...prev]);
-      setUnreadCount((prev) => prev + 1);
-    });
-
-    return () => {
-      socket.emit('leave_user', user.id);
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [isAuthenticated, user?.id]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -82,44 +35,105 @@ export const NotificationBell: React.FC = () => {
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
 
-  const handleMarkAsRead = async (id: string, e: React.MouseEvent) => {
+  // Initial fetch and WebSocket connection
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+
+    // Fetch unread count initially
+    const loadUnreadCount = async () => {
+      try {
+        const count = await notificationApi.getUnreadCount();
+        setUnreadCount(count);
+      } catch (err) {
+        // quiet fallback
+      }
+    };
+    loadUnreadCount();
+
+    // Socket.io connection
+    const socketUrl =
+      window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:5000'
+        : window.location.origin;
+
+    const socket: Socket = io(socketUrl, {
+      transports: ['websocket', 'polling']
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit('join:user', user.id);
+    });
+
+    socket.on('notification:new', (newNotif: NotificationItem) => {
+      setUnreadCount((prev) => prev + 1);
+      setNotifications((prev) => [newNotif, ...prev.slice(0, 19)]);
+    });
+
+    return () => {
+      socket.emit('leave:user', user.id);
+      socket.disconnect();
+    };
+  }, [isAuthenticated, user?.id]);
+
+  // Fetch list when dropdown opens
+  useEffect(() => {
+    if (isOpen && isAuthenticated) {
+      fetchNotifications();
+    }
+  }, [isOpen, isAuthenticated]);
+
+  const fetchNotifications = async () => {
+    setLoading(true);
+    try {
+      const data = await notificationApi.getNotifications({ limit: 15 });
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unreadCount || 0);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkAsRead = async (notif: NotificationItem, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await NotificationAPI.markRead(id);
+      await notificationApi.markAsRead(notif.id);
       setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+        prev.map((item) => (item.id === notif.id ? { ...item, isRead: true } : item))
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (err) {
-      console.error('Failed to mark read', err);
+      console.error('Failed to mark read:', err);
     }
   };
 
   const handleMarkAllRead = async () => {
     try {
-      await NotificationAPI.markAllRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await notificationApi.markAllAsRead();
+      setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
       setUnreadCount(0);
     } catch (err) {
-      console.error('Failed to mark all read', err);
+      console.error('Failed to mark all read:', err);
     }
   };
 
   const handleNotificationClick = async (notif: NotificationItem) => {
     if (!notif.isRead) {
-      try {
-        await NotificationAPI.markRead(notif.id);
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
-        );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      } catch (err) {
-        // Continue navigation regardless
-      }
+      await notificationApi.markAsRead(notif.id).catch(() => {});
+      setNotifications((prev) =>
+        prev.map((item) => (item.id === notif.id ? { ...item, isRead: true } : item))
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
     }
     setIsOpen(false);
     if (notif.link) {
@@ -127,89 +141,101 @@ export const NotificationBell: React.FC = () => {
     }
   };
 
+  const formatRelativeTime = (dateStr: string) => {
+    const diffSec = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (diffSec < 60) return 'Just now';
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+    return `${Math.floor(diffSec / 86400)}d ago`;
+  };
+
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'INVITE':
-        return <UserPlus className="w-4 h-4 text-cyan-400" />;
+        return <UserPlus className="w-4 h-4 text-emerald-400" />;
       case 'MATCH_START':
         return <Trophy className="w-4 h-4 text-amber-400" />;
       case 'SCORE_UPDATE':
-        return <Award className="w-4 h-4 text-emerald-400" />;
+        return <Flame className="w-4 h-4 text-cyan-400" />;
       case 'BAN':
-        return <AlertTriangle className="w-4 h-4 text-red-400" />;
-      case 'DISPUTE_UPDATE':
-        return <AlertCircle className="w-4 h-4 text-purple-400" />;
+        return <ShieldAlert className="w-4 h-4 text-red-400" />;
+      case 'DISPUTE':
+        return <AlertCircle className="w-4 h-4 text-rose-400" />;
       default:
-        return <Info className="w-4 h-4 text-blue-400" />;
+        return <Bell className="w-4 h-4 text-slate-400" />;
     }
   };
 
-  const formatTimeAgo = (dateStr: string) => {
-    const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-  };
+  if (!isAuthenticated) return null;
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Bell Trigger */}
+      {/* Bell Trigger Button */}
       <button
-        onClick={() => {
-          setIsOpen(!isOpen);
-          if (!isOpen) fetchNotifications();
-        }}
+        onClick={() => setIsOpen(!isOpen)}
         title="Notifications"
-        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-lg transition-colors relative"
+        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-lg transition-colors relative focus:outline-none"
       >
-        <Bell className="w-4 h-4" />
+        <Bell className="w-5 h-5 transition-transform hover:scale-105" />
         {unreadCount > 0 && (
           <>
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-cyan-400 rounded-full animate-ping" />
-            <span className="absolute -top-1 -right-1 px-1.5 py-0.2 bg-cyan-500 text-black font-extrabold text-[10px] rounded-full shadow-glow-cyan">
+            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-cyan-400 rounded-full animate-ping"></span>
+            <span className="absolute -top-1 -right-1 px-1.5 py-0.5 min-w-[18px] text-[10px] font-bold font-mono bg-cyan-500 text-black rounded-full border border-slate-900 shadow-glow-cyan flex items-center justify-center">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           </>
         )}
       </button>
 
-      {/* Dropdown Panel */}
+      {/* Dropdown Popover */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl z-50 overflow-hidden backdrop-blur-xl">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 max-h-[32rem] bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
           {/* Header */}
-          <div className="px-4 py-3 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="font-heading font-bold text-sm text-white">Notifications</span>
+          <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+            <div className="flex items-center gap-2">
+              <span className="font-heading font-semibold text-sm text-white tracking-wide">
+                NOTIFICATIONS
+              </span>
               {unreadCount > 0 && (
-                <span className="px-2 py-0.5 text-[10px] font-mono bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-full">
-                  {unreadCount} new
+                <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-full">
+                  {unreadCount} NEW
                 </span>
               )}
             </div>
-            {unreadCount > 0 && (
+
+            <div className="flex items-center gap-1">
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllRead}
+                  title="Mark all as read"
+                  className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-800 rounded transition-colors"
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  <span>Mark all read</span>
+                </button>
+              )}
               <button
-                onClick={handleMarkAllRead}
-                className="text-xs text-slate-400 hover:text-cyan-400 flex items-center space-x-1 transition-colors"
+                onClick={() => setIsOpen(false)}
+                className="p-1 text-slate-500 hover:text-slate-300 rounded hover:bg-slate-800"
               >
-                <CheckCheck className="w-3.5 h-3.5" />
-                <span>Mark all read</span>
+                <X className="w-4 h-4" />
               </button>
-            )}
+            </div>
           </div>
 
-          {/* List */}
-          <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-800/60">
-            {loading && notifications.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500">
-                Loading notifications...
+          {/* List Content */}
+          <div className="overflow-y-auto flex-1 divide-y divide-slate-800/60">
+            {loading ? (
+              <div className="py-10 text-center text-slate-500 text-xs">
+                <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                Loading alerts...
               </div>
             ) : notifications.length === 0 ? (
-              <div className="py-10 text-center space-y-2">
-                <Bell className="w-8 h-8 text-slate-600 mx-auto" />
-                <p className="text-xs text-slate-400 font-medium">No notifications yet</p>
-                <p className="text-[11px] text-slate-600">
-                  Matches, team invites, and score updates will appear here.
+              <div className="py-12 px-4 text-center">
+                <Bell className="w-8 h-8 text-slate-600 mx-auto mb-2 opacity-50" />
+                <p className="text-xs text-slate-400 font-medium">No alerts right now</p>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  Match updates, invites, and verifications will appear here.
                 </p>
               </div>
             ) : (
@@ -217,41 +243,55 @@ export const NotificationBell: React.FC = () => {
                 <div
                   key={notif.id}
                   onClick={() => handleNotificationClick(notif)}
-                  className={`p-3.5 flex items-start space-x-3 transition-colors cursor-pointer hover:bg-slate-800/50 ${
-                    !notif.isRead ? 'bg-cyan-950/20 border-l-2 border-cyan-400' : 'bg-transparent'
+                  className={`p-3.5 transition-colors cursor-pointer flex gap-3 items-start relative hover:bg-slate-800/50 ${
+                    !notif.isRead ? 'bg-cyan-950/20' : 'bg-transparent'
                   }`}
                 >
-                  <div className="p-2 rounded-xl bg-slate-800 border border-slate-700/60 shrink-0">
+                  {/* Unread indicator dot */}
+                  {!notif.isRead && (
+                    <span className="absolute left-1.5 top-5 w-1.5 h-1.5 bg-cyan-400 rounded-full" />
+                  )}
+
+                  <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700/80 flex items-center justify-center shrink-0 mt-0.5">
                     {getTypeIcon(notif.type)}
                   </div>
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
-                      <p className={`text-xs font-semibold truncate ${!notif.isRead ? 'text-white' : 'text-slate-300'}`}>
+                      <h4
+                        className={`text-xs font-semibold truncate ${
+                          !notif.isRead ? 'text-white' : 'text-slate-300'
+                        }`}
+                      >
                         {notif.title}
-                      </p>
-                      <span className="text-[10px] text-slate-500 font-mono shrink-0">
-                        {formatTimeAgo(notif.createdAt)}
+                      </h4>
+                      <span className="text-[10px] text-slate-500 font-mono flex items-center gap-0.5 shrink-0">
+                        <Clock className="w-2.5 h-2.5" />
+                        {formatRelativeTime(notif.createdAt)}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
+
+                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                       {notif.message}
                     </p>
-                    {notif.link && (
-                      <span className="text-[10px] text-cyan-400 hover:underline flex items-center space-x-1 mt-1 font-mono">
-                        <span>View details</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
+
+                    <div className="flex items-center justify-between mt-2 pt-1">
+                      <span className="text-[9px] uppercase tracking-wider font-mono text-slate-500">
+                        {notif.type.replace('_', ' ')}
                       </span>
-                    )}
+
+                      {!notif.isRead && (
+                        <button
+                          onClick={(e) => handleMarkAsRead(notif, e)}
+                          title="Mark read"
+                          className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-mono"
+                        >
+                          <Check className="w-3 h-3" />
+                          <span>Dismiss</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {!notif.isRead && (
-                    <button
-                      onClick={(e) => handleMarkAsRead(notif.id, e)}
-                      title="Mark as read"
-                      className="p-1 text-slate-500 hover:text-cyan-400 rounded transition-colors"
-                    >
-                      <div className="w-2 h-2 rounded-full bg-cyan-400" />
-                    </button>
-                  )}
                 </div>
               ))
             )}

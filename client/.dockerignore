@@ -3,4 +3,4 @@ dist
 .env
 .git
 .gitignore
-*.log
+npm-debug.log

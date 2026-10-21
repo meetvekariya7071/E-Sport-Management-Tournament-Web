@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Users, User, ShieldCheck, AlertCircle } from 'lucide-react';
-import { tournamentService } from '../api/tournament.service';
+import { tournamentService } from '../services/tournament.service';
 import { Tournament } from '../types';
 
 interface JoinModalProps {

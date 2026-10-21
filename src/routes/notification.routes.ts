@@ -4,16 +4,12 @@ import { authenticate } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-// All notification routes require authenticated user
+// All notification routes require authentication
 router.use(authenticate);
 
-// GET /api/notifications
-router.get('/', NotificationController.getNotifications);
-
-// PATCH /api/notifications/:id/read
-router.patch('/:id/read', NotificationController.markRead);
-
-// PATCH /api/notifications/read-all
-router.patch('/read-all', NotificationController.markAllRead);
+router.get('/', NotificationController.getUserNotifications);
+router.get('/unread-count', NotificationController.getUnreadCount);
+router.patch('/read-all', NotificationController.markAllAsRead);
+router.patch('/:id/read', NotificationController.markAsRead);
 
 export default router;

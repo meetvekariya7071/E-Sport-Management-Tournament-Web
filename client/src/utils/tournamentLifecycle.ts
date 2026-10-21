@@ -1,79 +1,130 @@
-export type TournamentLifecycle = 'UPCOMING' | 'REGISTRATION_OPEN' | 'IN_PROGRESS' | 'COMPLETED';
+export type TournamentLifecycle = 'FUTURE' | 'REGISTRATION_OPEN' | 'LIVE' | 'PAST';
 
 export interface TournamentLifecycleDates {
   registrationStartDate?: Date | string | null;
   registrationEndDate?: Date | string | null;
-  startDate?: Date | string | null;
+  startDate: Date | string;
   endDate?: Date | string | null;
-  status?: string;
-  lifecycleStatus?: string;
+  status?: string | null;
 }
 
 /**
- * Dynamic lifecycle status evaluator for tournaments on the client.
- *
- * Rules:
- * - PAST / COMPLETED: now > endDate (or explicitly marked as COMPLETED).
- * - LIVE / IN_PROGRESS: now > registrationEndDate && (endDate ? now <= endDate : true)
- *   (Registration is closed; matches are actively running).
- * - REGISTRATION_OPEN: now >= registrationStartDate && now <= registrationEndDate
- *   (Players/teams can register).
- * - FUTURE / UPCOMING: now < registrationStartDate
- *   (Registration has not opened yet).
+ * Dynamically evaluates tournament lifecycle status based on current time and date bounds:
+ * - FUTURE / UPCOMING: now < registrationStartDate (Registration has not opened yet).
+ * - REGISTRATION_OPEN: now >= registrationStartDate && now <= registrationEndDate (Players/teams can register).
+ * - LIVE / IN_PROGRESS: now > registrationEndDate && (endDate ? now <= endDate : true) (Registration is closed; matches are actively running).
+ * - PAST / COMPLETED: now > endDate (or explicitly marked as COMPLETED by organizer/referee).
  */
-export function evaluateTournamentLifecycle(
+export function getTournamentLifecycleStatus(
   tournament: TournamentLifecycleDates,
   referenceDate: Date = new Date()
 ): TournamentLifecycle {
   // If explicitly completed or cancelled
   if (tournament.status === 'COMPLETED') {
-    return 'COMPLETED';
+    return 'PAST';
   }
 
   const now = referenceDate.getTime();
-
-  // If dates are missing, fallback to status
-  if (!tournament.registrationStartDate || !tournament.registrationEndDate || !tournament.startDate) {
-    if (tournament.status === 'IN_PROGRESS') return 'IN_PROGRESS';
-    if (tournament.status === 'REGISTRATION_OPEN') return 'REGISTRATION_OPEN';
-    if (tournament.status === 'UPCOMING') return 'UPCOMING';
-    return 'REGISTRATION_OPEN';
-  }
-
-  const regStart = new Date(tournament.registrationStartDate).getTime();
-  const regEnd = new Date(tournament.registrationEndDate).getTime();
+  const regStart = tournament.registrationStartDate
+    ? new Date(tournament.registrationStartDate).getTime()
+    : NaN;
+  const regEnd = tournament.registrationEndDate
+    ? new Date(tournament.registrationEndDate).getTime()
+    : NaN;
+  const start = new Date(tournament.startDate).getTime();
   const end = tournament.endDate ? new Date(tournament.endDate).getTime() : null;
 
-  // 1. PAST / COMPLETED: now > endDate
+  // PAST / COMPLETED: now > endDate
   if (end !== null && !isNaN(end) && now > end) {
-    return 'COMPLETED';
+    return 'PAST';
   }
 
-  // 2. LIVE / IN_PROGRESS: now > registrationEndDate && (endDate ? now <= endDate : true)
-  if (now > regEnd && (end === null || isNaN(end) || now <= end)) {
-    return 'IN_PROGRESS';
+  // If no registration dates exist on legacy tournaments, fallback to status or start date
+  if (isNaN(regStart) || isNaN(regEnd)) {
+    if (tournament.status === 'REGISTRATION_OPEN') return 'REGISTRATION_OPEN';
+    if (tournament.status === 'IN_PROGRESS') return 'LIVE';
+    if (!isNaN(start) && now < start) return 'FUTURE';
+    return 'LIVE';
   }
 
-  // 3. REGISTRATION_OPEN: now >= registrationStartDate && now <= registrationEndDate
+  // FUTURE / UPCOMING: now < registrationStartDate
+  if (now < regStart) {
+    return 'FUTURE';
+  }
+
+  // REGISTRATION_OPEN: now >= registrationStartDate && now <= registrationEndDate
   if (now >= regStart && now <= regEnd) {
     return 'REGISTRATION_OPEN';
   }
 
-  // 4. FUTURE / UPCOMING: now < registrationStartDate
-  if (now < regStart) {
-    return 'UPCOMING';
+  // LIVE / IN_PROGRESS: now > registrationEndDate && (endDate ? now <= endDate : true)
+  if (now > regEnd && (end === null || now <= end)) {
+    return 'LIVE';
   }
 
-  return 'UPCOMING';
+  // Fallback
+  if (end !== null && !isNaN(end) && now > end) {
+    return 'PAST';
+  }
+
+  return 'LIVE';
 }
 
 /**
- * Helper to get days or hours remaining until registration opens
+ * Enforces chronological date validations:
+ * - registrationStartDate < registrationEndDate
+ * - registrationEndDate <= startDate
+ * - startDate < endDate (if endDate provided)
  */
-export function getDaysUntilRegistration(registrationStartDate: string | Date, referenceDate: Date = new Date()): number {
-  const target = new Date(registrationStartDate).getTime();
-  const now = referenceDate.getTime();
-  const diff = target - now;
-  if (diff <= 0) return 0;
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+export function validateTournamentDates(dates: {
+  registrationStartDate: Date | string;
+  registrationEndDate: Date | string;
+  startDate: Date | string;
+  endDate?: Date | string | null;
+}): { valid: boolean; error?: string } {
+  if (!dates.registrationStartDate) {
+    return { valid: false, error: 'Registration start date is required.' };
+  }
+  if (!dates.registrationEndDate) {
+    return { valid: false, error: 'Registration end date is required.' };
+  }
+  if (!dates.startDate) {
+    return { valid: false, error: 'Tournament start date is required.' };
+  }
+
+  const regStart = new Date(dates.registrationStartDate).getTime();
+  const regEnd = new Date(dates.registrationEndDate).getTime();
+  const start = new Date(dates.startDate).getTime();
+  const end = dates.endDate ? new Date(dates.endDate).getTime() : null;
+
+  if (isNaN(regStart)) return { valid: false, error: 'Registration start date is invalid.' };
+  if (isNaN(regEnd)) return { valid: false, error: 'Registration end date is invalid.' };
+  if (isNaN(start)) return { valid: false, error: 'Tournament start date is invalid.' };
+  if (dates.endDate && isNaN(end!)) return { valid: false, error: 'Tournament end date is invalid.' };
+
+  // registrationStartDate < registrationEndDate
+  if (regStart >= regEnd) {
+    return {
+      valid: false,
+      error: 'Registration start date must be strictly earlier than registration end date.'
+    };
+  }
+
+  // registrationEndDate <= startDate
+  if (regEnd > start) {
+    return {
+      valid: false,
+      error: 'Registration end date must be on or before the tournament start date.'
+    };
+  }
+
+  // startDate < endDate
+  if (end !== null && start >= end) {
+    return {
+      valid: false,
+      error: 'Tournament start date must be strictly earlier than tournament end date.'
+    };
+  }
+
+  return { valid: true };
 }

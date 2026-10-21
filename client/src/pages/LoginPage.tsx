@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { authService } from '../api/auth.service';
-import { Gamepad2, Lock, Mail, ArrowRight, AlertCircle, ShieldAlert } from 'lucide-react';
+import { authService } from '../services/auth.service';
+import { Gamepad2, Lock, Mail, ArrowRight, AlertCircle, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const [emailOrUsername, setEmailOrUsername] = useState('');
@@ -16,6 +16,9 @@ export const LoginPage: React.FC = () => {
 
   const query = new URLSearchParams(location.search);
   const isExpired = query.get('expired');
+  const isVerified = query.get('verified');
+  const isReset = query.get('reset');
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +38,7 @@ export const LoginPage: React.FC = () => {
       // Redirect to proper role dashboard
       if (data.user.role === 'ADMIN') navigate('/admin');
       else if (data.user.role === 'ORGANIZER') navigate('/organizer');
-      else if (data.user.role === 'REFEREE') navigate('/referee/dashboard');
+      else if (data.user.role === 'REFEREE') navigate('/referee/portal');
       else navigate('/player');
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Login failed. Please check credentials.');
@@ -44,9 +47,9 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleDemoFill = (email: string) => {
+  const handleDemoFill = (email: string, pass: string) => {
     setEmailOrUsername(email);
-    setPassword('PASSWORD123!');
+    setPassword(pass);
   };
 
   return (
@@ -56,6 +59,20 @@ export const LoginPage: React.FC = () => {
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center space-x-2">
             <ShieldAlert className="w-4 h-4 shrink-0" />
             <span>Session expired. Please log in again.</span>
+          </div>
+        )}
+
+        {isVerified && (
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>Account email verified! You may now log in to LeagueForge.</span>
+          </div>
+        )}
+
+        {isReset && (
+          <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs flex items-center space-x-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>Password successfully reset! Please log in with your new credentials.</span>
           </div>
         )}
 
@@ -98,9 +115,17 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-slate-300">
+                  Password
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
                 <input
@@ -113,6 +138,7 @@ export const LoginPage: React.FC = () => {
                 />
               </div>
             </div>
+
 
             <button
               type="submit"
@@ -127,41 +153,41 @@ export const LoginPage: React.FC = () => {
           {/* Quick Demo Fills */}
           <div className="mt-6 pt-6 border-t border-slate-800 text-center">
             <span className="text-[11px] font-mono text-slate-400 block mb-2 uppercase tracking-wider">
-              Fast Demo Accounts (Password: PASSWORD123!)
+              Fast Demo Accounts (Pre-configured)
             </span>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => handleDemoFill('admin@esports.com')}
+                onClick={() => handleDemoFill('admin@esports.com', 'PASSWORD123!')}
                 className="py-1.5 px-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-medium"
               >
                 Super Admin
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoFill('organizer@esports.com')}
+                onClick={() => handleDemoFill('organizer@esports.com', 'PASSWORD123!')}
                 className="py-1.5 px-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-medium"
               >
                 Organizer
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoFill('referee@esports.com')}
+                onClick={() => handleDemoFill('referee@esports.com', 'PASSWORD123!')}
                 className="py-1.5 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-medium"
               >
                 Referee
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoFill('player1@esports.com')}
+                onClick={() => handleDemoFill('player1@esports.com', 'PASSWORD123!')}
                 className="py-1.5 px-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium"
               >
                 Player 1 (Solo)
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoFill('player2@esports.com')}
-                className="py-1.5 px-2 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 font-medium"
+                onClick={() => handleDemoFill('player2@esports.com', 'PASSWORD123!')}
+                className="py-1.5 px-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 font-medium col-span-2 sm:col-span-1"
               >
                 Player 2 (Partner)
               </button>

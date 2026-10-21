@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { adminService, KPISummary } from '../api/admin.service';
+import { useLocation } from 'react-router-dom';
+import { adminService, KPISummary } from '../services/admin.service';
 import { BanModal } from '../components/BanModal';
 import { GameModal } from '../components/GameModal';
 import { TournamentInspectorModal } from '../components/TournamentInspectorModal';
@@ -20,18 +21,35 @@ import {
   ChevronRight,
   Eye,
   ArrowUpDown,
-  RefreshCw
+  FileText
 } from 'lucide-react';
 
-type DatabaseTab = 'players' | 'organizers' | 'referees' | 'games' | 'tournaments';
 
-export const AdminDashboard: React.FC = () => {
+export type DatabaseTab = 'players' | 'organizers' | 'referees' | 'games' | 'tournaments';
+
+interface AdminDashboardProps {
+  defaultTab?: DatabaseTab;
+}
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'players' }) => {
+  const location = useLocation();
+
+  const getInitialTab = (): DatabaseTab => {
+    const hash = location.hash.replace('#', '');
+    if (hash === 'games') return 'games';
+    if (hash === 'tournaments') return 'tournaments';
+    if (hash === 'users' || hash === 'players') return 'players';
+    if (hash === 'organizers') return 'organizers';
+    if (hash === 'referees') return 'referees';
+    return defaultTab;
+  };
+
   // KPI Summary
   const [kpis, setKpis] = useState<KPISummary | null>(null);
   const [kpiLoading, setKpiLoading] = useState(true);
 
   // Active Tab & Table State
-  const [activeTab, setActiveTab] = useState<DatabaseTab>('players');
+  const [activeTab, setActiveTab] = useState<DatabaseTab>(getInitialTab);
   const [tableData, setTableData] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -48,6 +66,7 @@ export const AdminDashboard: React.FC = () => {
     game: null
   });
   const [inspectTournamentId, setInspectTournamentId] = useState<string | null>(null);
+
 
   // Load KPIs
   const loadKpis = async () => {
@@ -67,20 +86,19 @@ export const AdminDashboard: React.FC = () => {
     try {
       setTableLoading(true);
 
-      const res = await adminService.getTableData(activeTab, {
+      const res = await adminService.getTableData(activeTab as any, {
         page,
         limit: 8,
         search,
         sortBy: sortBy || undefined,
         sortOrder
       });
-      const rawData = res?.data as any;
-      const dataItems = Array.isArray(rawData)
-        ? rawData
-        : (rawData?.games || rawData?.tournaments || rawData?.players || rawData?.data || []);
-      setTableData(dataItems || []);
+      const rawData = Array.isArray(res?.data)
+        ? res.data
+        : (res as any)?.games || (res as any)?.tournaments || (res as any)?.data || [];
+      setTableData(rawData || []);
       setTotalPages(res?.pagination?.totalPages || 1);
-      setTotalCount(res?.pagination?.total ?? (dataItems ? dataItems.length : 0));
+      setTotalCount(res?.pagination?.total || (rawData || []).length || 0);
     } catch (err) {
       console.error('Failed to load table:', err);
       setTableData([]);
@@ -89,13 +107,41 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+
   useEffect(() => {
     loadKpis();
   }, []);
 
+
+  // Sync activeTab if location.hash changes (e.g. from Sidebar links)
+  useEffect(() => {
+    const hash = location.hash.replace('#', '');
+    if (hash === 'games' && activeTab !== 'games') {
+      setTableData([]);
+      setActiveTab('games');
+    } else if (hash === 'tournaments' && activeTab !== 'tournaments') {
+      setTableData([]);
+      setActiveTab('tournaments');
+    } else if ((hash === 'users' || hash === 'players') && activeTab !== 'players') {
+      setTableData([]);
+      setActiveTab('players');
+    } else if (hash === 'organizers' && activeTab !== 'organizers') {
+      setTableData([]);
+      setActiveTab('organizers');
+    } else if (hash === 'referees' && activeTab !== 'referees') {
+      setTableData([]);
+      setActiveTab('referees');
+    }
+  }, [location.hash]);
+
+  useEffect(() => {
+    setTableData([]);
+    setPage(1);
+  }, [activeTab]);
+
   useEffect(() => {
     setPage(1);
-  }, [activeTab, search]);
+  }, [search]);
 
   useEffect(() => {
     loadTable();
@@ -146,18 +192,6 @@ export const AdminDashboard: React.FC = () => {
             Key performance indicators, user governance, and comprehensive database management.
           </p>
         </div>
-
-        <button
-          onClick={() => {
-            loadKpis();
-            loadTable();
-          }}
-          disabled={kpiLoading}
-          className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 text-xs font-mono text-slate-300 hover:text-white flex items-center space-x-2 transition-all shrink-0"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${kpiLoading ? 'animate-spin' : ''}`} />
-          <span>Refresh Data</span>
-        </button>
       </div>
 
       {/* KPI Cards (Matches BWP_pro admin header mockup) */}
@@ -219,6 +253,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
+
       {/* SYSTEM DATABASE: COMPREHENSIVE ENTITY MANAGEMENT */}
       <div className="gaming-card rounded-3xl border border-slate-800 p-6 sm:p-8 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
@@ -249,13 +284,10 @@ export const AdminDashboard: React.FC = () => {
               <button
                 key={tab}
                 onClick={() => {
-                  if (activeTab !== tab) {
-                    setActiveTab(tab);
-                    setTableData([]);
-                    setTableLoading(true);
-                    setSearch('');
-                    setSortBy('');
-                  }
+                  setTableData([]);
+                  setActiveTab(tab);
+                  setSearch('');
+                  setSortBy('');
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-heading font-bold uppercase tracking-wider transition-all flex items-center space-x-2 ${
                   activeTab === tab
@@ -273,6 +305,7 @@ export const AdminDashboard: React.FC = () => {
             )
           )}
         </div>
+
 
         {/* Search & Stats Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -382,7 +415,9 @@ export const AdminDashboard: React.FC = () => {
                   <th className="py-3 px-4 text-right">Inspect Action</th>
                 </tr>
               )}
+
             </thead>
+
 
             {/* Table Body with Loading Skeletons */}
             <tbody className="divide-y divide-slate-800/60">
@@ -394,27 +429,34 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                   </tr>
                 ))
-              ) : (tableData || []).length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
-                    No entities found in {activeTab}.
-                  </td>
-                </tr>
-              ) : (
-                (tableData || []).map((item) => {
+              ) : (() => {
+                const safeTableData = Array.isArray(tableData) ? tableData : [];
+                const currentItems = (safeTableData || []).slice(0, safeTableData.length);
+
+                if (currentItems.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-500">
+                        No entities found in {activeTab}.
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return (currentItems || []).map((item) => {
                   if (!item) return null;
 
                   if (activeTab === 'players' || activeTab === 'organizers' || activeTab === 'referees') {
-                    const username = item.username || 'User';
-                    const userInitial = (username || 'U').slice(0, 1).toUpperCase();
-                    const uuidDisplay = item.id ? `${item.id.slice(0, 8)}...` : 'N/A';
+                    if (!item.username && !item.email) return null;
+                    const username = item.username ? String(item.username) : 'User';
+                    const uuid = item.id ? `${String(item.id).slice(0, 8)}...` : '—';
 
                     return (
                       <tr key={item.id || Math.random()} className="hover:bg-slate-800/30 transition-colors">
                         <td className="py-3.5 px-4 font-semibold text-white">
                           <div className="flex items-center space-x-2.5">
                             <div className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400">
-                              {userInitial}
+                              {(username ? String(username) : 'U').slice(0, 1).toUpperCase()}
                             </div>
                             <div>
                               <span>{username}</span>
@@ -425,10 +467,10 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                         </td>
                         <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">
-                          {uuidDisplay}
+                          {uuid}
                         </td>
                         <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
-                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'N/A'}
+                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}
                         </td>
                         <td className="py-3.5 px-4 font-mono text-cyan-400 font-semibold">
                           {item.gamesPlayed ?? item.tournamentsManaged ?? item.matchesAdjudicated ?? 0}
@@ -456,7 +498,7 @@ export const AdminDashboard: React.FC = () => {
                             </button>
                           ) : (
                             <button
-                              onClick={() => setBanTarget({ id: item.id, username: item.username || 'User' })}
+                              onClick={() => setBanTarget({ id: item.id, username })}
                               className="px-3 py-1 rounded text-[11px] font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 flex items-center space-x-1 ml-auto transition-colors"
                             >
                               <Ban className="w-3 h-3" />
@@ -469,8 +511,8 @@ export const AdminDashboard: React.FC = () => {
                   }
 
                   if (activeTab === 'games') {
-                    const title = item.title || 'Game';
-                    const gameInitial = (title || 'GM').slice(0, 2).toUpperCase();
+                    if (!item.title && !item.slug && !item.name) return null;
+                    const gameTitle = item.title ? String(item.title) : item.name ? String(item.name) : 'Untitled';
 
                     return (
                       <tr key={item.id || Math.random()} className="hover:bg-slate-800/30 transition-colors">
@@ -479,23 +521,27 @@ export const AdminDashboard: React.FC = () => {
                             {item.coverImage ? (
                               <img
                                 src={item.coverImage}
-                                alt={title}
+                                alt={gameTitle}
                                 className="w-9 h-9 rounded-lg object-cover border border-slate-700"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                  if (fallback) fallback.style.display = 'flex';
+                                }}
                               />
-                            ) : (
-                              <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-cyan-400 font-bold border border-slate-700">
-                                {gameInitial}
-                              </div>
-                            )}
+                            ) : null}
+                            <div className={`w-9 h-9 rounded-lg bg-slate-800 items-center justify-center text-cyan-400 font-bold border border-slate-700 ${item.coverImage ? 'hidden' : 'flex'}`}>
+                              {(gameTitle ? String(gameTitle) : 'UN').slice(0, 2).toUpperCase()}
+                            </div>
                             <div>
-                              <span>{title}</span>
+                              <span>{gameTitle}</span>
                               <span className="text-[11px] text-slate-500 block font-mono">
-                                slug: {item.slug || 'n-a'}
+                                slug: {item.slug || '—'}
                               </span>
                             </div>
                           </div>
                         </td>
-                        <td className="py-3.5 px-4 text-cyan-400 font-medium">{item.genre || 'N/A'}</td>
+                        <td className="py-3.5 px-4 text-cyan-400 font-medium">{item.genre || 'Esports'}</td>
                         <td className="py-3.5 px-4 font-mono text-slate-300 text-[11px]">
                           {item.platform || 'PC'}
                         </td>
@@ -511,7 +557,7 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 font-mono text-slate-400 text-xs">
-                          {item.minTeamSize ?? 1}-{item.maxTeamSize ?? 5}
+                          {item.minTeamSize ?? 1}-{item.maxTeamSize ?? 1}
                         </td>
                         <td className="py-3.5 px-4 text-right space-x-2">
                           <button
@@ -522,7 +568,7 @@ export const AdminDashboard: React.FC = () => {
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteGame(item.id, title)}
+                            onClick={() => handleDeleteGame(item.id, gameTitle)}
                             className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30 transition-colors"
                             title="Delete Game"
                           >
@@ -534,25 +580,24 @@ export const AdminDashboard: React.FC = () => {
                   }
 
                   if (activeTab === 'tournaments') {
-                    const title = item.title || 'Untitled Tournament';
-
+                    if (!item.title) return null;
                     return (
                       <tr
-                        key={item.id || Math.random()}
-                        onClick={() => item.id && setInspectTournamentId(item.id)}
+                        key={item.id}
+                        onClick={() => setInspectTournamentId(item.id)}
                         className="hover:bg-slate-800/40 transition-colors cursor-pointer group"
                       >
                         <td className="py-3.5 px-4 font-semibold text-white group-hover:text-cyan-400 transition-colors">
                           <div className="flex items-center space-x-2">
-                            <span>{title}</span>
+                            <span>{item.title}</span>
                             <Eye className="w-3.5 h-3.5 text-slate-500 group-hover:text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                         </td>
                         <td className="py-3.5 px-4 text-cyan-400 font-medium">
-                          {item.game?.title || 'Game'}
+                          {item.game?.title || '—'}
                         </td>
                         <td className="py-3.5 px-4 text-slate-400 text-xs">
-                          {item.organizer?.username || 'Organizer'}
+                          {item.organizer?.username || '—'}
                         </td>
                         <td className="py-3.5 px-4 font-mono">
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
@@ -560,18 +605,18 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
-                          {item.startDate ? new Date(item.startDate).toLocaleDateString() : 'TBD'}
+                          {item.startDate ? new Date(item.startDate).toLocaleDateString() : '—'}
                         </td>
                         <td className="py-3.5 px-4">
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                            {item.status || 'UPCOMING'}
+                            {item.status || 'DRAFT'}
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (item.id) setInspectTournamentId(item.id);
+                              setInspectTournamentId(item.id);
                             }}
                             className="px-3 py-1 rounded text-[11px] font-semibold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center space-x-1 ml-auto transition-colors"
                           >
@@ -583,9 +628,11 @@ export const AdminDashboard: React.FC = () => {
                     );
                   }
 
+
                   return null;
-                })
-              )}
+
+                });
+              })()}
             </tbody>
           </table>
         </div>

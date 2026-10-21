@@ -2,17 +2,17 @@ import http from 'http';
 import app from './app';
 import { ENV } from './config/env';
 import { connectDB, disconnectDB } from './config/db';
-import { initSocket } from './config/socket';
+import { initSocketServer } from './services/socket.service';
 
 const startServer = async () => {
   await connectDB();
 
   const httpServer = http.createServer(app);
-  initSocket(httpServer);
+  initSocketServer(httpServer);
 
-  httpServer.listen(ENV.PORT, () => {
+  const server = httpServer.listen(ENV.PORT, () => {
     console.log(`====================================================`);
-    console.log(`  E-Sports Tournament Management Backend Online    `);
+    console.log(`  LeagueForge - Esports Tournament Management Online `);
     console.log(`  Environment: ${ENV.NODE_ENV}                     `);
     console.log(`  Port:        ${ENV.PORT}                         `);
     console.log(`  WebSockets:  ws://localhost:${ENV.PORT} (Socket.io)`);
@@ -23,7 +23,7 @@ const startServer = async () => {
   // Graceful Shutdown
   const shutdown = async (signal: string) => {
     console.log(`\nReceived ${signal}. Gracefully shutting down...`);
-    httpServer.close(async () => {
+    server.close(async () => {
       await disconnectDB();
       console.log('Server process terminated cleanly.');
       process.exit(0);

@@ -15,20 +15,24 @@ import { OrganizerDatabaseViewer } from './pages/OrganizerDatabaseViewer';
 import { PlayerDashboard } from './pages/PlayerDashboard';
 import { TournamentDetailsPage } from './pages/TournamentDetailsPage';
 import { TournamentCatalogPage } from './pages/TournamentCatalogPage';
-import { TournamentLivePage } from './pages/TournamentLivePage';
+import { LiveTournamentPage } from './pages/LiveTournamentPage';
 import { OrganizerScoringConsole } from './pages/OrganizerScoringConsole';
 import { RefereeDashboard } from './pages/RefereeDashboard';
-import { DisputesReviewBoard } from './pages/DisputesReviewBoard';
+import { DisputesReviewPage } from './pages/DisputesReviewPage';
+import { MatchScoreVerificationPage } from './pages/MatchScoreVerificationPage';
 import { GamesCatalogPage } from './pages/GamesCatalogPage';
-import { MatchControlRoomPage } from './pages/MatchControlRoomPage';
-import { ScoreVerificationPage } from './pages/ScoreVerificationPage';
-import { RefereeDisputesPage } from './pages/RefereeDisputesPage';
+import { EmailVerificationNoticePage } from './pages/EmailVerificationNoticePage';
+import { EmailVerificationPage } from './pages/EmailVerificationPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { OtpVerificationPage } from './pages/OtpVerificationPage';
+import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
 
-const DashboardRedirect: React.FC = () => {
+const RoleDashboardRedirect: React.FC = () => {
   const { role } = useAuth();
   if (role === 'ADMIN') return <Navigate to="/admin" replace />;
   if (role === 'ORGANIZER') return <Navigate to="/organizer" replace />;
-  if (role === 'REFEREE') return <Navigate to="/referee/dashboard" replace />;
+  if (role === 'REFEREE') return <Navigate to="/referee/portal" replace />;
   return <Navigate to="/player" replace />;
 };
 
@@ -39,32 +43,36 @@ export const App: React.FC = () => {
         {/* Public Routes with Standard Public Layout */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/games" element={<GamesCatalogPage />} />
           <Route path="/tournaments" element={<TournamentCatalogPage />} />
           <Route path="/tournaments/:id" element={<TournamentDetailsPage />} />
-          <Route path="/tournaments/:id/live" element={<TournamentLivePage />} />
-          <Route path="/games" element={<GamesCatalogPage />} />
+          <Route path="/tournaments/:id/live" element={<LiveTournamentPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-notice" element={<EmailVerificationNoticePage />} />
+          <Route path="/verify-otp" element={<OtpVerificationPage />} />
+          <Route path="/verify-email" element={<EmailVerificationPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
+
+
 
         {/* Dedicated Account Restricted Notice Page */}
         <Route path="/banned" element={<BannedNoticePage />} />
 
         {/* Authenticated Dashboard Routes with ProtectedRoute Guards */}
         <Route element={<DashboardLayout />}>
-          {/* Universal Dashboard Redirect based on Role */}
+          {/* Default /dashboard root redirect based on authenticated user's active role */}
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute>
-                <DashboardRedirect />
+              <ProtectedRoute allowedRoles={['ADMIN', 'ORGANIZER', 'REFEREE', 'PLAYER']}>
+                <RoleDashboardRedirect />
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/dashboard/referee"
-            element={<Navigate to="/referee/dashboard" replace />}
-          />
+          <Route path="/dashboard/referee" element={<Navigate to="/referee/portal" replace />} />
 
           {/* Admin Routes - Strictly ADMIN */}
           <Route
@@ -76,9 +84,57 @@ export const App: React.FC = () => {
             }
           />
           <Route
-            path="/admin/audit-logs"
-            element={<Navigate to="/admin" replace />}
+            path="/admin/overview"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
           />
+          <Route path="/admin/games" element={<Navigate to="/games" replace />} />
+          <Route path="/admin/tournaments" element={<Navigate to="/tournaments" replace />} />
+          <Route
+            path="/admin/disputes"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN']}>
+                <DisputesReviewPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/admin/audit-logs" element={<Navigate to="/admin" replace />} />
+
+          {/* Referee Routes - REFEREE / ORGANIZER / ADMIN */}
+          <Route path="/referee">
+            <Route index element={<Navigate to="/referee/portal" replace />} />
+            <Route
+              path="portal"
+              element={
+                <ProtectedRoute allowedRoles={['REFEREE', 'ORGANIZER', 'ADMIN']}>
+                  <RefereeDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="dashboard"
+              element={<Navigate to="/referee/portal" replace />}
+            />
+            <Route
+              path="disputes"
+              element={
+                <ProtectedRoute allowedRoles={['REFEREE', 'ORGANIZER', 'ADMIN']}>
+                  <DisputesReviewPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="matches/:id/verify"
+              element={
+                <ProtectedRoute allowedRoles={['REFEREE', 'ORGANIZER', 'ADMIN']}>
+                  <MatchScoreVerificationPage />
+                </ProtectedRoute>
+              }
+            />
+          </Route>
 
           {/* Organizer Routes - Strictly ORGANIZER / ADMIN */}
           <Route
@@ -89,94 +145,63 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/organizer/tournaments"
+            element={
+              <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}>
+                <OrganizerDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/organizer/create"
+            element={
+              <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}>
+                <OrganizerDashboard defaultCreateModal={true} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/organizer/teams"
+            element={
+              <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}>
+                <OrganizerDashboard defaultTab="teams" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/organizer/rules"
+            element={
+              <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}>
+                <OrganizerDashboard defaultTab="rules" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/organizer/disputes"
+            element={
+              <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}>
+                <DisputesReviewPage />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* Dedicated Scoped Tournament Database Viewer (Organizer, Admin, and Referee read-only) */}
+          {/* Dedicated Scoped Tournament Database Viewer */}
           <Route
             path="/organizer/tournaments/:id/database"
             element={
-              <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN', 'REFEREE']}>
+              <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}>
                 <OrganizerDatabaseViewer />
               </ProtectedRoute>
             }
           />
 
-          {/* Real-Time Match Scoring & Bracket Console */}
+          {/* Organizer Scoring Console with Live WebSocket Broadcasts */}
           <Route
             path="/organizer/tournaments/:id/scoring"
             element={
               <ProtectedRoute allowedRoles={['ORGANIZER', 'ADMIN']}>
                 <OrganizerScoringConsole />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Disputes Review Board - Accessible to Organizers, Referees, and Admins */}
-          <Route
-            path="/organizer/disputes"
-            element={
-              <ProtectedRoute allowedRoles={['ORGANIZER', 'REFEREE', 'ADMIN']}>
-                <DisputesReviewBoard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/referee/disputes"
-            element={
-              <ProtectedRoute allowedRoles={['REFEREE', 'ADMIN', 'ORGANIZER']}>
-                <RefereeDisputesPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Referee Portal & Verification Dashboard - Strictly REFEREE / ADMIN */}
-          <Route
-            path="/referee"
-            element={
-              <ProtectedRoute allowedRoles={['REFEREE', 'ADMIN']}>
-                <RefereeDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/referee/dashboard"
-            element={
-              <ProtectedRoute allowedRoles={['REFEREE', 'ADMIN']}>
-                <RefereeDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/referee/portal"
-            element={
-              <ProtectedRoute allowedRoles={['REFEREE', 'ADMIN']}>
-                <RefereeDashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Match Check-in & Roster Checklist Room */}
-          <Route
-            path="/referee/matches/:id"
-            element={
-              <ProtectedRoute allowedRoles={['REFEREE', 'ADMIN']}>
-                <MatchControlRoomPage />
-              </ProtectedRoute>
-            }
-          />
-          {/* Score Verification & Official Sign-off Engine */}
-          <Route
-            path="/referee/matches/:id/verify"
-            element={
-              <ProtectedRoute allowedRoles={['REFEREE', 'ADMIN']}>
-                <ScoreVerificationPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/referee/tournaments/:id/database"
-            element={
-              <ProtectedRoute allowedRoles={['REFEREE', 'ADMIN', 'ORGANIZER']}>
-                <OrganizerDatabaseViewer />
               </ProtectedRoute>
             }
           />
@@ -194,7 +219,54 @@ export const App: React.FC = () => {
             path="/player/my-tournaments"
             element={
               <ProtectedRoute allowedRoles={['PLAYER', 'ADMIN']}>
-                <PlayerDashboard />
+                <PlayerDashboard defaultTab="MY_TOURNAMENTS" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/player/matches"
+            element={
+              <ProtectedRoute allowedRoles={['PLAYER', 'ADMIN']}>
+                <PlayerDashboard defaultTab="HISTORY" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/player/teams"
+            element={
+              <ProtectedRoute allowedRoles={['PLAYER', 'ADMIN']}>
+                <PlayerDashboard defaultTab="MY_TOURNAMENTS" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/player/browse"
+            element={
+              <ProtectedRoute allowedRoles={['PLAYER', 'ADMIN']}>
+                <PlayerDashboard defaultTab="BROWSE" />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Support /dashboard player aliases */}
+          <Route path="/dashboard/my-tournaments" element={<Navigate to="/player/my-tournaments" replace />} />
+          <Route path="/dashboard/matches" element={<Navigate to="/player/matches" replace />} />
+          <Route path="/dashboard/teams" element={<Navigate to="/player/teams" replace />} />
+
+          {/* Account & Profile Settings */}
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'ORGANIZER', 'REFEREE', 'PLAYER']}>
+                <ProfileSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute allowedRoles={['ADMIN', 'ORGANIZER', 'REFEREE', 'PLAYER']}>
+                <ProfileSettingsPage />
               </ProtectedRoute>
             }
           />

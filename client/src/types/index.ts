@@ -1,6 +1,7 @@
 export type Role = 'ADMIN' | 'ORGANIZER' | 'PLAYER' | 'REFEREE';
 export type TournamentFormat = 'SOLO' | 'DUO' | 'SQUAD';
 export type TournamentStatus = 'DRAFT' | 'REGISTRATION_OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type TournamentLifecycle = 'FUTURE' | 'REGISTRATION_OPEN' | 'LIVE' | 'PAST';
 export type ParticipantStatus = 'REGISTERED' | 'CHECKED_IN' | 'DISQUALIFIED' | 'ELIMINATED';
 
 export interface User {
@@ -8,6 +9,7 @@ export interface User {
   email: string;
   username: string;
   role: Role;
+  isEmailVerified?: boolean;
   isBanned: boolean;
   banReason?: string | null;
   bio?: string | null;
@@ -42,7 +44,7 @@ export interface Tournament {
   rules?: any;
   format: TournamentFormat;
   status: TournamentStatus;
-  lifecycleStatus?: 'UPCOMING' | 'REGISTRATION_OPEN' | 'IN_PROGRESS' | 'COMPLETED';
+  lifecycleStatus?: TournamentLifecycle;
   maxParticipants: number;
   currentCount: number;
   registrationStartDate: string;
@@ -68,6 +70,17 @@ export interface Tournament {
     teams: number;
     matches: number;
   };
+  rounds?: Array<{
+    id: string;
+    roundNumber: number;
+    name: string;
+    stage?: string;
+    matches?: Array<{
+      id: string;
+      matchNumber: number;
+      status: string;
+    }>;
+  }>;
 }
 
 export interface TournamentDetails extends Tournament {
@@ -146,24 +159,31 @@ export interface PlayerRegistration {
 export interface BracketCompetitor {
   resultId?: string;
   participantId: string;
+  name: string;
+  tag?: string | null;
+  isTeam?: boolean;
+  avatarUrl?: string | null;
   score: number;
   kills: number;
   placement?: number | null;
   isWinner: boolean;
-  name: string;
-  tag?: string | null;
-  username: string;
-  avatarUrl?: string | null;
+  teamRoster?: string[];
 }
 
 export interface BracketMatch {
   id: string;
   matchNumber: number;
-  status: string;
+  roundId: string;
+  status: 'PENDING' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'DISPUTED';
   nextMatchId?: string | null;
-  winnerParticipantId?: string | null;
+  nextMatchSlot?: number | null;
+  hasCredentials?: boolean;
+  customRoomId?: string | null;
+  customRoomPassword?: string | null;
+  roomInstructions?: string | null;
   scheduledAt?: string | null;
   completedAt?: string | null;
+  referee?: { id: string; username: string } | null;
   competitors: BracketCompetitor[];
 }
 
@@ -171,31 +191,35 @@ export interface BracketRound {
   id: string;
   roundNumber: number;
   name: string;
+  stage?: string | null;
   matches: BracketMatch[];
 }
 
-export interface BracketData {
-  tournamentId: string;
-  title: string;
-  structure: string;
-  format: TournamentFormat;
-  status: TournamentStatus;
-  rounds: BracketRound[];
+export interface LeaderboardStanding {
+  rank: number;
+  participantId: string;
+  name: string;
+  tag?: string | null;
+  isTeam: boolean;
+  avatarUrl?: string | null;
+  totalPoints: number;
+  rankPoints: number;
+  killPoints: number;
+  totalKills: number;
+  matchesPlayed: number;
+  wins: number;
+  bestPlacement?: number | null;
+  finalRoundPlacement?: number | null;
+  tieBreakerBadge?: string | null;
 }
 
-export interface LeaderboardRow {
-  rank: number;
-  participantId?: string;
-  teamId?: string;
-  name: string;
-  username?: string;
-  tag?: string | null;
-  matchesPlayed: number;
-  totalScore: number;
-  totalKills: number;
-  wins: number;
-  bestPlacement?: number | string | null;
-  disqualified?: boolean;
-  participants?: string[];
+export interface BracketTreeData {
+  tournament: Tournament & {
+    structure: string;
+    tieBreakerRules?: string[];
+  };
+  rounds: BracketRound[];
+  standings: LeaderboardStanding[];
 }
+
 

@@ -5,13 +5,17 @@ import { Roles } from '../types';
 
 const router = Router();
 
-// Review Board & Resolution endpoints (Organizer, Referee, Admin)
-router.use(authenticate, authorizeRoles([Roles.ADMIN, Roles.ORGANIZER, Roles.REFEREE]));
+// Base authentication for all dispute interactions
+router.use(authenticate);
 
-// GET /api/disputes - Filter disputes across tournaments
-router.get('/', DisputeController.getAllDisputes);
+// Get disputes for current user (player sees theirs, staff sees assigned)
+router.get('/', DisputeController.getUserDisputes);
 
-// PATCH /api/disputes/:disputeId/resolve - Resolve dispute and optionally overwrite score
-router.patch('/:disputeId/resolve', DisputeController.resolveDispute);
+// Resolve dispute (Referee, Organizer, Admin)
+router.patch(
+  '/:disputeId/resolve',
+  authorizeRoles([Roles.REFEREE, Roles.ORGANIZER, Roles.ADMIN]),
+  DisputeController.resolveDispute
+);
 
 export default router;

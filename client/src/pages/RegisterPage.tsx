@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { authService } from '../api/auth.service';
+import { authService } from '../services/auth.service';
 import { Role } from '../types';
 import { Gamepad2, User, Trophy, Shield, ArrowRight, AlertCircle } from 'lucide-react';
 
@@ -31,12 +31,7 @@ export const RegisterPage: React.FC = () => {
         bio: bio || undefined
       });
 
-      login(data.token, data.user);
-
-      if (data.user.role === 'ADMIN') navigate('/admin');
-      else if (data.user.role === 'ORGANIZER') navigate('/organizer');
-      else if (data.user.role === 'REFEREE') navigate('/referee/dashboard');
-      else navigate('/player');
+      navigate(`/verify-otp?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Registration failed.');
     } finally {
@@ -57,8 +52,8 @@ export const RegisterPage: React.FC = () => {
             </h2>
             <p className="text-xs text-slate-400">
               {role === 'PLAYER'
-                ? 'Join the community and start competing in global tournaments.'
-                : 'Manage tournaments, teams, and keep the game fair.'}
+                ? 'Join the community and start competing in LeagueForge tournaments.'
+                : 'Manage tournaments, teams, and keep the game fair on LeagueForge.'}
             </p>
           </div>
 

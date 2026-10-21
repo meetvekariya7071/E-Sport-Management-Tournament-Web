@@ -360,6 +360,7 @@ export class AdminService {
             id: t.id,
             name: t.name,
             tag: t.tag,
+            inviteCode: t.inviteCode,
             captain: t.captain,
             rosterCount: t.members.length,
             members: t.members.map((m) => ({

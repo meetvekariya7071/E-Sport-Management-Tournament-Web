@@ -5,7 +5,8 @@ import { ENV } from '../config/env';
 import { Role, Roles, AuthUserPayload } from '../types';
 
 interface DecodedToken {
-  sub: string;
+  sub?: string;
+  id?: string;
   email: string;
   role: Role;
   iat: number;
@@ -45,9 +46,18 @@ export const authenticate = async (
       return;
     }
 
+    const userId = decoded.sub || decoded.id;
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Unauthorized: Invalid token payload.'
+      });
+      return;
+    }
+
     // Verify user in DB to ensure real-time ban enforcement
     const user = await prisma.user.findUnique({
-      where: { id: decoded.sub },
+      where: { id: userId },
       select: {
         id: true,
         email: true,
@@ -136,11 +146,6 @@ export const verifyTournamentOwnerOrAdmin = async (
 
     // Admins bypass ownership restrictions
     if (user.role === Roles.ADMIN) {
-      return next();
-    }
-
-    // Referees have read-only access to inspect tournament sub-databases
-    if (user.role === Roles.REFEREE && req.method === 'GET') {
       return next();
     }
 

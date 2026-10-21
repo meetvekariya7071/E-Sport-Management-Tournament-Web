@@ -40,7 +40,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     // Redirect to their respective authorized dashboard
     if (role === 'ADMIN') return <Navigate to="/admin" replace />;
     if (role === 'ORGANIZER') return <Navigate to="/organizer" replace />;
-    if (role === 'REFEREE') return <Navigate to="/referee/dashboard" replace />;
+    if (role === 'REFEREE') return <Navigate to="/referee/portal" replace />;
     return <Navigate to="/player" replace />;
   }
 

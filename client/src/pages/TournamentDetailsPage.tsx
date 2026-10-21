@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { tournamentService } from '../api/tournament.service';
+import { tournamentService } from '../services/tournament.service';
 import { TournamentDetails } from '../types';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -16,7 +16,8 @@ import {
   BookOpen,
   Share2,
   CheckCircle2,
-  UserCheck
+  UserCheck,
+  Radio
 } from 'lucide-react';
 import { RegistrationModal } from '../components/RegistrationModal';
 
@@ -133,7 +134,7 @@ export const TournamentDetailsPage: React.FC = () => {
   return (
     <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto py-8 px-4">
       {/* Navigation Breadcrumb */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center justify-between">
         <Link
           to="/tournaments"
           className="text-xs font-mono text-cyan-400 hover:underline inline-flex items-center gap-1.5"
@@ -144,26 +145,28 @@ export const TournamentDetailsPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <Link
             to={`/tournaments/${tournament.id}/live`}
-            className="px-3.5 py-1.5 rounded-xl bg-cyan-400/10 hover:bg-cyan-400/20 border border-cyan-500/40 text-cyan-400 text-xs font-heading font-bold shadow-glow-cyan"
+            className="px-3.5 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,240,255,0.15)]"
           >
-            Live Bracket & Spectator &rarr;
+            <Radio className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+            <span>Watch Live / Brackets &rarr;</span>
           </Link>
 
           {canModerate && (
-            <>
-              <Link
-                to={`/organizer/tournaments/${tournament.id}/scoring`}
-                className="px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs font-heading font-bold"
-              >
-                Match Scoring Console &rarr;
-              </Link>
-              <Link
-                to={`/organizer/tournaments/${tournament.id}/database`}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-mono font-bold"
-              >
-                Tournament DB &rarr;
-              </Link>
-            </>
+            <Link
+              to={`/organizer/tournaments/${tournament.id}/scoring`}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold flex items-center gap-1.5"
+            >
+              <span>Live Scoring Console &rarr;</span>
+            </Link>
+          )}
+
+          {canModerate && (
+            <Link
+              to={`/organizer/tournaments/${tournament.id}/database`}
+              className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 text-xs font-mono font-bold"
+            >
+              Database &rarr;
+            </Link>
           )}
         </div>
       </div>
@@ -286,6 +289,14 @@ export const TournamentDetailsPage: React.FC = () => {
                 Registration Closed
               </div>
             )}
+
+            <Link
+              to={`/tournaments/${tournament.id}/live`}
+              className="mt-3 w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 hover:text-cyan-300 font-mono font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(0,240,255,0.1)]"
+            >
+              <Radio className="w-3.5 h-3.5 animate-pulse text-cyan-400" />
+              <span>View Brackets & Live Arena &rarr;</span>
+            </Link>
           </div>
         </div>
       </div>

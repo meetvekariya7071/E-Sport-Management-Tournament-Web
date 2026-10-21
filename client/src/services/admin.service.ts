@@ -38,6 +38,7 @@ export interface TournamentInspection {
     id: string;
     name: string;
     tag?: string | null;
+    inviteCode?: string | null;
     captain: { id: string; username: string };
     rosterCount: number;
     members: Array<{ id: string; username: string; role: string }>;
@@ -83,14 +84,29 @@ export const adminService = {
     }
   ): Promise<PaginatedResult<T>> {
     const res = await api.get(`/admin/tables/${table}`, { params });
-    const items = Array.isArray(res.data)
-      ? res.data
-      : (Array.isArray(res.data?.data)
-          ? res.data.data
-          : (res.data?.games || res.data?.tournaments || res.data?.players || res.data?.users || []));
+    const payload = res?.data;
+    const rawData = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload?.games)
+      ? payload.games
+      : Array.isArray(payload?.tournaments)
+      ? payload.tournaments
+      : Array.isArray(payload?.[table])
+      ? payload[table]
+      : [];
+
+    const pagination = payload?.pagination || {
+      page: params?.page || 1,
+      limit: params?.limit || 8,
+      total: rawData.length,
+      totalPages: Math.max(1, Math.ceil(rawData.length / (params?.limit || 8)))
+    };
+
     return {
-      data: items || [],
-      pagination: res.data?.pagination || { page: 1, limit: 8, total: (items ? items.length : 0), totalPages: 1 }
+      data: rawData,
+      pagination
     };
   },
 
@@ -144,5 +160,63 @@ export const adminService = {
 
   async deleteGame(gameId: string): Promise<void> {
     await api.delete(`/admin/games/${gameId}`);
+  },
+
+  async getAuditLogs(params?: {
+    page?: number;
+    limit?: number;
+    action?: string;
+    targetEntity?: string;
+    actorId?: string;
+    search?: string;
+  }): Promise<{
+    logs: Array<{
+      id: string;
+      actorId?: string | null;
+      action: string;
+      targetEntity: string;
+      targetId?: string | null;
+      ipAddress?: string | null;
+      details: any;
+      createdAt: string;
+      actor?: {
+        id: string;
+        username: string;
+        email: string;
+        role: string;
+        avatarUrl?: string | null;
+      } | null;
+    }>;
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    const res = await api.get('/admin/audit-logs', { params });
+    return {
+      logs: res.data.logs,
+      pagination: res.data.pagination
+    };
+  },
+
+  async getSystemHealth(): Promise<{
+    success: boolean;
+    status: string;
+    database: { status: string; latencyMs: number; dialect: string };
+    websocket: { status: string; connectedClients: number };
+    cache: { status: string; keys: number; hits: number; misses: number };
+    system: {
+      uptimeSeconds: number;
+      memory: { rssMb: number; heapUsedMb: number; heapTotalMb: number };
+      nodeVersion: string;
+      platform: string;
+    };
+  }> {
+    const res = await api.get('/health');
+    return res.data;
   }
 };
+
+

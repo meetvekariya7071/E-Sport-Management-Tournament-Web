@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { tournamentService, OrganizerStats } from '../api/tournament.service';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { tournamentService, OrganizerStats } from '../services/tournament.service';
 import { TournamentCreatorModal } from '../components/TournamentCreatorModal';
 import { Tournament } from '../types';
 import {
@@ -15,15 +15,24 @@ import {
   Swords,
   Clock,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Radio,
+  FileText
 } from 'lucide-react';
 
-export const OrganizerDashboard: React.FC = () => {
+interface OrganizerDashboardProps {
+  defaultCreateModal?: boolean;
+  defaultTab?: string;
+}
+
+export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ defaultCreateModal, defaultTab }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [stats, setStats] = useState<OrganizerStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showCreatorModal, setShowCreatorModal] = useState(false);
+  const [showCreatorModal, setShowCreatorModal] = useState(defaultCreateModal || false);
+  const [showRulesModal, setShowRulesModal] = useState(false);
 
   // Quick Edit State
   const [editTarget, setEditTarget] = useState<Tournament | null>(null);
@@ -31,6 +40,20 @@ export const OrganizerDashboard: React.FC = () => {
   const [editPrize, setEditPrize] = useState('');
   const [editStatus, setEditStatus] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    if (defaultCreateModal || location.pathname === '/organizer/create') {
+      setShowCreatorModal(true);
+    } else {
+      setShowCreatorModal(false);
+    }
+
+    if (location.pathname === '/organizer/rules') {
+      setShowRulesModal(true);
+    } else {
+      setShowRulesModal(false);
+    }
+  }, [defaultCreateModal, location.pathname]);
 
   const loadData = async () => {
     try {
@@ -106,8 +129,8 @@ export const OrganizerDashboard: React.FC = () => {
         </div>
 
         <button
-          onClick={() => setShowCreatorModal(true)}
-          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-black font-heading font-bold text-xs shadow-glow-cyan flex items-center space-x-2 transition-all transform hover:-translate-y-0.5"
+          onClick={() => navigate('/organizer/create')}
+          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-black font-heading font-bold text-xs shadow-glow-cyan flex items-center space-x-2 transition-all transform hover:-translate-y-0.5 cursor-pointer relative z-10"
         >
           <PlusCircle className="w-4 h-4" />
           <span>Launch New Tournament</span>
@@ -246,8 +269,17 @@ export const OrganizerDashboard: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4 text-right space-x-2">
                       <Link
+                        to={`/organizer/tournaments/${t.id}/scoring`}
+                        className="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold inline-flex items-center space-x-1 transition-colors"
+                        title="Live Scoring Console"
+                      >
+                        <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                        <span>Scoring</span>
+                      </Link>
+
+                      <Link
                         to={`/organizer/tournaments/${t.id}/database`}
-                        className="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-semibold inline-flex items-center space-x-1 transition-colors"
+                        className="px-2.5 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-semibold inline-flex items-center space-x-1 transition-colors"
                         title="Open Dedicated Tournament Database"
                       >
                         <Database className="w-3.5 h-3.5" />
@@ -282,9 +314,73 @@ export const OrganizerDashboard: React.FC = () => {
       {showCreatorModal && (
         <TournamentCreatorModal
           isOpen={showCreatorModal}
-          onClose={() => setShowCreatorModal(false)}
-          onSuccess={loadData}
+          onClose={() => {
+            setShowCreatorModal(false);
+            if (location.pathname === '/organizer/create') {
+              navigate('/organizer/tournaments');
+            }
+          }}
+          onSuccess={() => {
+            loadData();
+            if (location.pathname === '/organizer/create') {
+              navigate('/organizer/tournaments');
+            }
+          }}
         />
+      )}
+
+      {/* Rule Books & Formats Modal */}
+      {showRulesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="w-full max-w-lg rounded-3xl bg-slate-900/95 border border-slate-800 p-7 space-y-5 gaming-card shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-heading font-bold text-lg text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-cyan-400" />
+                Tournament Rule Books & Formats
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRulesModal(false);
+                  navigate('/organizer/tournaments');
+                }}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs text-slate-300 max-h-96 overflow-y-auto pr-1">
+              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <span className="font-bold text-cyan-400 uppercase font-mono tracking-wider">Single Elimination</span>
+                <p className="text-slate-400 text-[11px]">Knockout bracket format. Loser is eliminated immediately until one grand champion remains.</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <span className="font-bold text-purple-400 uppercase font-mono tracking-wider">Double Elimination</span>
+                <p className="text-slate-400 text-[11px]">Winners and losers brackets. Teams require two match losses before complete elimination from tournament.</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <span className="font-bold text-emerald-400 uppercase font-mono tracking-wider">Round Robin & Points Matrix</span>
+                <p className="text-slate-400 text-[11px]">All teams face each opponent within their group pool. Cumulative points determine bracket advancement.</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <span className="font-bold text-amber-400 uppercase font-mono tracking-wider">Fair Play & Dispute Protocols</span>
+                <p className="text-slate-400 text-[11px]">Scores must be submitted within 15 minutes of match completion. Disputed results enter Referee arbitration immediately.</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowRulesModal(false);
+                navigate('/organizer/tournaments');
+              }}
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-black font-heading font-bold text-xs tracking-wider shadow-glow-cyan cursor-pointer"
+            >
+              Close Standards Guide
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Quick Edit Modal */}

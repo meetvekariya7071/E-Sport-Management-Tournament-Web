@@ -2,103 +2,145 @@ import { Request, Response } from 'express';
 import { DisputeService } from '../services/dispute.service';
 
 export class DisputeController {
+  /**
+   * POST /api/tournaments/:id/disputes
+   * Player raises a dispute on an active/recent match.
+   */
   static async createDispute(req: Request, res: Response): Promise<void> {
     try {
       const tournamentId = req.params.id;
+      const claimantId = req.user!.id;
       const { matchId, reason, description, proofUrl } = req.body;
-      const raisedById = req.user!.id;
       const ipAddress = req.ip || req.socket.remoteAddress;
 
-      if (!reason || !description) {
+      if (!matchId || !reason || !description) {
         res.status(400).json({
           success: false,
-          error: 'Reason and description are mandatory to raise a dispute.'
+          error: 'matchId, reason, and description are required fields.'
         });
         return;
       }
 
-      const dispute = await DisputeService.createDispute({
-        tournamentId,
-        matchId,
-        raisedById,
-        reason,
-        description,
-        proofUrl,
+      const dispute = await DisputeService.createDispute(
+        {
+          tournamentId,
+          matchId,
+          claimantId,
+          reason,
+          description,
+          proofUrl
+        },
         ipAddress
-      });
+      );
 
       res.status(201).json({
         success: true,
-        message: 'Dispute ticket raised successfully.',
-        dispute
+        message: 'Dispute ticket submitted successfully. Tournament officials have been notified.',
+        data: dispute
       });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+    } catch (err: any) {
+      if (err.message.includes('not found')) {
+        res.status(404).json({ success: false, error: err.message });
+      } else if (err.message.includes('registered participant')) {
+        res.status(403).json({ success: false, error: err.message });
+      } else {
+        res.status(500).json({ success: false, error: err.message || 'Failed to submit dispute' });
+      }
     }
   }
 
+  /**
+   * GET /api/tournaments/:id/disputes
+   * Retrieves all disputes for a tournament.
+   */
   static async getTournamentDisputes(req: Request, res: Response): Promise<void> {
     try {
       const tournamentId = req.params.id;
-      const status = req.query.status as string;
+      const status = req.query.status as string | undefined;
 
-      const disputes = await DisputeService.getTournamentDisputes(tournamentId, status);
-      res.status(200).json({ success: true, count: disputes.length, disputes });
-    } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
+      const disputes = await DisputeService.getDisputesByTournament(tournamentId, status);
+      res.status(200).json({ success: true, data: disputes });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || 'Failed to fetch disputes' });
     }
   }
 
-  static async getAllDisputes(req: Request, res: Response): Promise<void> {
+  /**
+   * GET /api/disputes
+   * Retrieves disputes for the authenticated user based on role.
+   */
+  static async getUserDisputes(req: Request, res: Response): Promise<void> {
     try {
-      const tournamentId = req.query.tournamentId as string;
-      const status = req.query.status as string;
-      const user = req.user!;
+      const userId = req.user!.id;
+      const role = req.user!.role;
+      const tournamentId = req.query.tournamentId as string | undefined;
+      const status = req.query.status as string | undefined;
 
-      const disputes = await DisputeService.getAllDisputes({
+      const disputes = await DisputeService.getDisputesForUser(userId, role, {
         tournamentId,
-        status,
-        userId: user.id,
-        userRole: user.role
+        status
       });
 
-      res.status(200).json({ success: true, count: disputes.length, disputes });
-    } catch (error: any) {
-      res.status(500).json({ success: false, error: error.message });
+      res.status(200).json({ success: true, data: disputes });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || 'Failed to fetch disputes' });
     }
   }
 
+  /**
+   * PATCH /api/disputes/:disputeId/resolve
+   * Review board action: Investigate, Accept & Overwrite Score, or Dismiss.
+   */
   static async resolveDispute(req: Request, res: Response): Promise<void> {
     try {
       const { disputeId } = req.params;
-      const { status, resolutionNote, overwriteScore } = req.body;
-      const resolvedById = req.user!.id;
+      const resolverId = req.user!.id;
+      const resolverRole = req.user!.role;
+      const { action, resolutionNotes, scoreAdjustments } = req.body;
       const ipAddress = req.ip || req.socket.remoteAddress;
 
-      if (!status || !resolutionNote) {
+      if (!action || !resolutionNotes) {
         res.status(400).json({
           success: false,
-          error: 'Status and resolutionNote are required to resolve a dispute.'
+          error: 'action and resolutionNotes are required fields.'
         });
         return;
       }
 
-      const updated = await DisputeService.resolveDispute({
+      const validActions = ['INVESTIGATE', 'ACCEPT_OVERWRITE', 'DISMISS'];
+      if (!validActions.includes(action)) {
+        res.status(400).json({
+          success: false,
+          error: `Invalid action '${action}'. Must be one of: ${validActions.join(', ')}`
+        });
+        return;
+      }
+
+      const resolved = await DisputeService.resolveDispute(
         disputeId,
-        resolvedById,
-        status,
-        resolutionNote,
-        overwriteScore,
+        resolverId,
+        resolverRole,
+        {
+          action,
+          resolutionNotes,
+          scoreAdjustments
+        },
         ipAddress
-      });
+      );
 
       res.status(200).json({
         success: true,
-        message: `Dispute ticket resolved as ${status}.`,
-        dispute: updated
+        message: `Dispute status updated: ${action}`,
+        data: resolved
       });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
+    } catch (err: any) {
+      if (err.message.includes('not found')) {
+        res.status(404).json({ success: false, error: err.message });
+      } else if (err.message.includes('Unauthorized')) {
+        res.status(403).json({ success: false, error: err.message });
+      } else {
+        res.status(500).json({ success: false, error: err.message || 'Failed to resolve dispute' });
+      }
     }
   }
 }
