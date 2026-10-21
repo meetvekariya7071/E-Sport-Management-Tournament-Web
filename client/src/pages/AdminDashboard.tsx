@@ -21,7 +21,9 @@ import {
   ChevronRight,
   Eye,
   ArrowUpDown,
-  FileText
+  FileText,
+  Archive,
+  ArchiveRestore
 } from 'lucide-react';
 
 
@@ -167,13 +169,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
   };
 
   const handleDeleteGame = async (gameId: string, title: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${title}" from the catalog?`)) return;
+    if (!window.confirm(`Are you sure you want to delete or retire "${title}" from the catalog?`)) return;
     try {
-      await adminService.deleteGame(gameId);
+      const res = await adminService.deleteGame(gameId);
+      if (res?.message) {
+        alert(res.message);
+      }
       loadTable();
       loadKpis();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to delete game');
+    }
+  };
+
+  const handleToggleGameArchive = async (gameId: string, currentActive: boolean, title: string) => {
+    const action = currentActive ? 'archive' : 'unarchive';
+    if (!window.confirm(`Are you sure you want to ${action} "${title}"?`)) return;
+    try {
+      const res = await adminService.toggleGameStatus(gameId, !currentActive);
+      if (res?.message) {
+        alert(res.message);
+      }
+      loadTable();
+      loadKpis();
+    } catch (err: any) {
+      alert(err.response?.data?.error || `Failed to ${action} game`);
     }
   };
 
@@ -394,6 +414,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
                   <th className="py-3 px-4">Genre / Category</th>
                   <th className="py-3 px-4">Platform</th>
                   <th className="py-3 px-4">Team Format</th>
+                  <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Min-Max Size</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
@@ -556,10 +577,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
                             {item.isTeamBased ? 'TEAM FORMAT' : 'SOLO ONLY'}
                           </span>
                         </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`px-2.5 py-0.5 rounded text-[10px] font-mono font-bold border inline-flex items-center gap-1.5 ${
+                              item.isActive !== false
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                                : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                item.isActive !== false ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                              }`}
+                            />
+                            {item.isActive !== false ? 'ACTIVE' : 'ARCHIVED'}
+                          </span>
+                        </td>
                         <td className="py-3.5 px-4 font-mono text-slate-400 text-xs">
                           {item.minTeamSize ?? 1}-{item.maxTeamSize ?? 1}
                         </td>
                         <td className="py-3.5 px-4 text-right space-x-2">
+                          <button
+                            onClick={() => handleToggleGameArchive(item.id, item.isActive !== false, gameTitle)}
+                            className={`p-1.5 rounded-lg border transition-colors ${
+                              item.isActive !== false
+                                ? 'bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/30'
+                                : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30'
+                            }`}
+                            title={item.isActive !== false ? 'Archive Game (Hide from new tournaments)' : 'Unarchive Game (Make active)'}
+                          >
+                            {item.isActive !== false ? <Archive className="w-3.5 h-3.5" /> : <ArchiveRestore className="w-3.5 h-3.5" />}
+                          </button>
                           <button
                             onClick={() => setGameModalState({ isOpen: true, game: item })}
                             className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 transition-colors"

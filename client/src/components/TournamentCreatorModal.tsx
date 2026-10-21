@@ -56,7 +56,7 @@ export const TournamentCreatorModal: React.FC<TournamentCreatorModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       gameService
-        .getAllGames()
+        .getAllGames(true)
         .then((data) => {
           const list = Array.isArray(data) ? data : [];
           setGames(list);

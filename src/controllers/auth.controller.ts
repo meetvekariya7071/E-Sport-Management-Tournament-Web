@@ -57,6 +57,15 @@ export class AuthController {
         data: result
       });
     } catch (error: any) {
+      if (error.requiresVerification) {
+        res.status(403).json({
+          success: false,
+          requiresVerification: true,
+          email: error.email,
+          message: error.message
+        });
+        return;
+      }
       if (error.message.startsWith('UNAUTHORIZED:')) {
         res.status(401).json({ success: false, error: error.message.replace('UNAUTHORIZED: ', '') });
       } else if (error.message.startsWith('FORBIDDEN:')) {

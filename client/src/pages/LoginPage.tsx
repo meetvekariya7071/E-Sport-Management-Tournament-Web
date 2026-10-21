@@ -41,7 +41,18 @@ export const LoginPage: React.FC = () => {
       else if (data.user.role === 'REFEREE') navigate('/referee/portal');
       else navigate('/player');
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || 'Login failed. Please check credentials.');
+      // Intercept unverified account status without setting auth tokens
+      if (err.response?.status === 403 && (err.response?.data?.requiresVerification || err.response?.data?.email)) {
+        const targetEmail = err.response.data.email || (emailOrUsername.includes('@') ? emailOrUsername : '');
+        navigate(`/verify-otp?email=${encodeURIComponent(targetEmail)}&reason=unverified_login`, {
+          state: {
+            email: targetEmail,
+            message: err.response.data.message || 'Verification code required to finish sign-in.'
+          }
+        });
+        return;
+      }
+      setError(err.response?.data?.error || err.response?.data?.message || err.message || 'Login failed. Please check credentials.');
     } finally {
       setIsLoading(false);
     }

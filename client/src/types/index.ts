@@ -27,10 +27,20 @@ export interface Game {
   isTeamBased: boolean;
   minTeamSize: number;
   maxTeamSize: number;
+  isActive?: boolean;
+  coverImageUrl?: string | null;
+  bannerUrl?: string | null;
   metadata?: any;
   _count?: {
     tournaments: number;
   };
+  stats?: {
+    totalTournaments: number;
+    activeTournaments: number;
+    totalParticipants: number;
+    totalPrizePool: string;
+  };
+  tournaments?: Tournament[];
 }
 
 export interface Tournament {
@@ -59,6 +69,7 @@ export interface Tournament {
     genre?: string;
     platform?: string;
     isTeamBased?: boolean;
+    coverImage?: string | null;
   };
   organizer?: {
     id: string;

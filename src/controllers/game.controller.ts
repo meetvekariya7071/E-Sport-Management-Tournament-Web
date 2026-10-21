@@ -71,7 +71,8 @@ export class GameController {
    */
   static async getAllGames(req: Request, res: Response): Promise<void> {
     try {
-      const games = await GameService.getAllGames();
+      const onlyActive = req.query.all !== 'true';
+      const games = await GameService.getAllGames(onlyActive);
       res.status(200).json({
         success: true,
         count: games.length,
@@ -88,16 +89,59 @@ export class GameController {
   static async deleteGame(req: Request, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      await GameService.deleteGame(id);
+      const result = await GameService.deleteGame(id);
       res.status(200).json({
         success: true,
-        message: 'Game removed from catalog.'
+        softDeleted: result.softDeleted,
+        message: result.message
       });
     } catch (error: any) {
-      if (error.message.startsWith('FORBIDDEN:')) {
-        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
       } else {
         res.status(500).json({ success: false, error: error.message || 'Failed to delete game.' });
+      }
+    }
+  }
+
+  /**
+   * PATCH /api/games/:id/toggle-status (Admin only)
+   */
+  static async toggleGameStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const { isActive } = req.body;
+      const result = await GameService.toggleGameStatus(id, isActive);
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: result.game
+      });
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Failed to toggle game status.' });
+      }
+    }
+  }
+
+  /**
+   * GET /api/games/:idOrSlug (Public)
+   */
+  static async getGameByIdOrSlug(req: Request, res: Response): Promise<void> {
+    try {
+      const { idOrSlug } = req.params;
+      const game = await GameService.getGameByIdOrSlug(idOrSlug);
+      res.status(200).json({
+        success: true,
+        data: game
+      });
+    } catch (error: any) {
+      if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Failed to retrieve game details.' });
       }
     }
   }

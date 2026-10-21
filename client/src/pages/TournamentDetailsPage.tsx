@@ -131,6 +131,13 @@ export const TournamentDetailsPage: React.FC = () => {
     parsedRules = {};
   }
 
+  const heroBackground =
+    tournament.bannerImage ||
+    (tournament as any).bannerUrl ||
+    (tournament as any).coverImageUrl ||
+    (tournament.game as any)?.coverImage ||
+    '/images/hero-banner.jpg';
+
   return (
     <div className="space-y-8 animate-fadeIn max-w-7xl mx-auto py-8 px-4">
       {/* Navigation Breadcrumb */}
@@ -171,9 +178,21 @@ export const TournamentDetailsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Hero Tournament Banner */}
-      <div className="gaming-card rounded-3xl p-6 sm:p-10 border border-slate-800 bg-gradient-to-br from-slate-900 via-gaming-card to-slate-950 shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
-        <div className="space-y-4 max-w-2xl">
+      {/* Hero Tournament Banner with Dynamic Image Backdrop */}
+      <div className="relative w-full overflow-hidden rounded-3xl border border-slate-800 bg-slate-950 p-6 sm:p-10 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+        {/* Dynamic Background Image Layer with Esports Gradient Overlay */}
+        <img
+          src={heroBackground}
+          alt={tournament.title}
+          className="absolute inset-0 w-full h-full object-cover opacity-35 mix-blend-luminosity scale-105 pointer-events-none transition-all duration-700"
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src = '/images/hero-banner.jpg';
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/65 to-transparent pointer-events-none" />
+
+        <div className="relative z-10 space-y-4 max-w-2xl">
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-3 py-0.5 rounded-full text-xs font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase">
               {tournament.format} FORMAT
@@ -215,7 +234,7 @@ export const TournamentDetailsPage: React.FC = () => {
         </div>
 
         {/* Live Status & Dynamic Register Box */}
-        <div className="p-6 rounded-2xl bg-slate-900/90 border border-cyan-500/30 text-center shrink-0 w-full sm:w-72 space-y-4 shadow-glow-cyan">
+        <div className="relative z-10 p-6 rounded-2xl bg-slate-900/90 border border-cyan-500/30 text-center shrink-0 w-full sm:w-72 space-y-4 shadow-glow-cyan backdrop-blur-md">
           {/* Capacity Indicator */}
           <div>
             <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest block">

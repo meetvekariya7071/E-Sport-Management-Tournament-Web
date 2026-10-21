@@ -21,12 +21,15 @@ import { RefereeDashboard } from './pages/RefereeDashboard';
 import { DisputesReviewPage } from './pages/DisputesReviewPage';
 import { MatchScoreVerificationPage } from './pages/MatchScoreVerificationPage';
 import { GamesCatalogPage } from './pages/GamesCatalogPage';
+import { GameDetailPage } from './pages/GameDetailPage';
 import { EmailVerificationNoticePage } from './pages/EmailVerificationNoticePage';
 import { EmailVerificationPage } from './pages/EmailVerificationPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { OtpVerificationPage } from './pages/OtpVerificationPage';
 import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
+
+import ScrollToTop from './components/common/ScrollToTop';
 
 const RoleDashboardRedirect: React.FC = () => {
   const { role } = useAuth();
@@ -39,11 +42,13 @@ const RoleDashboardRedirect: React.FC = () => {
 export const App: React.FC = () => {
   return (
     <AuthProvider>
+      <ScrollToTop />
       <Routes>
         {/* Public Routes with Standard Public Layout */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/games" element={<GamesCatalogPage />} />
+          <Route path="/games/:idOrSlug" element={<GameDetailPage />} />
           <Route path="/tournaments" element={<TournamentCatalogPage />} />
           <Route path="/tournaments/:id" element={<TournamentDetailsPage />} />
           <Route path="/tournaments/:id/live" element={<LiveTournamentPage />} />

@@ -525,7 +525,7 @@ export class AuthService {
     const isEmailVerified = isDemoUser ? true : user.isEmailVerified;
 
     if (isDemoUser && !user.isEmailVerified) {
-      prisma.user.update({
+      await prisma.user.update({
         where: { id: user.id },
         data: {
           isEmailVerified: true,
@@ -533,6 +533,31 @@ export class AuthService {
           emailVerificationExpires: null
         }
       }).catch((err) => console.error('[AuthService.loginUser] Demo verification update failed:', err));
+    }
+
+    if (!isEmailVerified) {
+      // Auto-generate fresh 6-digit verification code and dispatch to inbox
+      const otp = this.generateOtp();
+      const hashedOtp = this.hashToken(otp);
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerificationToken: hashedOtp,
+          emailVerificationExpires: new Date(Date.now() + 15 * 60 * 1000)
+        }
+      });
+
+      emailService.sendVerificationEmail(user.email, user.username, otp).catch((err) =>
+        console.error('[AuthService.loginUser] Automatic OTP resend failed:', err)
+      );
+
+      const verificationError: any = new Error(
+        "Your email address has not been verified yet. Please enter the 6-digit confirmation code sent to your inbox to activate your account."
+      );
+      verificationError.requiresVerification = true;
+      verificationError.email = user.email;
+      throw verificationError;
     }
 
     const token = jwt.sign(
@@ -751,6 +776,145 @@ export class AuthService {
         },
         token
       }
+    };
+  }
+
+  /**
+   * Permanently deletes a user account with comprehensive relational safe-handling.
+   */
+  static async deleteAccount(userId: string, password: string) {
+    if (!userId || !password) {
+      throw new Error('BAD_REQUEST: Current password is required to delete your account.');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        organizedTournaments: {
+          where: {
+            status: { in: ['REGISTRATION_OPEN', 'IN_PROGRESS'] }
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      throw new Error('NOT_FOUND: User account not found.');
+    }
+
+    // Demo admin safeguard
+    if (user.email.toLowerCase() === 'admin@esports.com') {
+      throw new Error('FORBIDDEN: Demo administrator account cannot be deleted.');
+    }
+
+    // Validate password
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new Error('UNAUTHORIZED: Invalid password. Account deletion requires correct password authentication.');
+    }
+
+    // Check for active tournament involvements if Organizer
+    if (user.organizedTournaments && user.organizedTournaments.length > 0) {
+      throw new Error('BAD_REQUEST: You cannot delete your account while hosting active or ongoing tournaments. Please conclude or cancel them first.');
+    }
+
+    // Relational Integrity Safe-Handling in a Prisma Transaction
+    await prisma.$transaction(async (tx) => {
+      // 1. Disconnect referee foreign keys on matches
+      await tx.match.updateMany({
+        where: { refereeId: userId },
+        data: { refereeId: null }
+      });
+      await tx.match.updateMany({
+        where: { verifiedById: userId },
+        data: { verifiedById: null }
+      });
+
+      // 2. Disconnect dispute resolutions
+      await tx.dispute.updateMany({
+        where: { resolvedById: userId },
+        data: { resolvedById: null }
+      });
+
+      // 3. Disconnect created games
+      await tx.game.updateMany({
+        where: { createdById: userId },
+        data: { createdById: null }
+      });
+
+      // 4. Disconnect audit logs
+      await tx.auditLog.updateMany({
+        where: { actorId: userId },
+        data: { actorId: null }
+      });
+
+      // 5. Handle Captained Teams (Team.captain has onDelete: Restrict)
+      const captainTeams = await tx.team.findMany({
+        where: { captainId: userId },
+        include: { members: true }
+      });
+
+      for (const team of captainTeams) {
+        const nextCaptain = team.members.find((m) => m.userId !== userId);
+        if (nextCaptain) {
+          await tx.team.update({
+            where: { id: team.id },
+            data: { captainId: nextCaptain.userId }
+          });
+        } else {
+          await tx.tournamentParticipant.deleteMany({ where: { teamId: team.id } });
+          await tx.teamMember.deleteMany({ where: { teamId: team.id } });
+          await tx.team.delete({ where: { id: team.id } });
+        }
+      }
+
+      // 6. Remove participant records from pending tournament registrations (DRAFT, REGISTRATION_OPEN)
+      const pendingParticipants = await tx.tournamentParticipant.findMany({
+        where: {
+          userId,
+          tournament: {
+            status: { in: ['DRAFT', 'REGISTRATION_OPEN'] }
+          }
+        },
+        include: { tournament: true }
+      });
+
+      for (const part of pendingParticipants) {
+        if (part.tournament && part.tournament.currentCount > 0) {
+          await tx.tournament.update({
+            where: { id: part.tournamentId },
+            data: { currentCount: { decrement: 1 } }
+          });
+        }
+      }
+
+      await tx.tournamentParticipant.deleteMany({
+        where: {
+          userId,
+          tournament: {
+            status: { in: ['DRAFT', 'REGISTRATION_OPEN'] }
+          }
+        }
+      });
+
+      // 7. Remove team memberships
+      await tx.teamMember.deleteMany({ where: { userId } });
+
+      // 8. Remove disputes raised by user
+      await tx.dispute.deleteMany({ where: { claimantId: userId } });
+
+      // 9. Remove user notifications
+      await tx.notification.deleteMany({ where: { userId } });
+
+      // 10. Delete the user entity
+      await tx.user.delete({
+        where: { id: userId }
+      });
+    });
+
+    return {
+      success: true,
+      message: 'Your account has been deleted.'
     };
   }
 }

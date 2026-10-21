@@ -187,3 +187,5 @@ export const verifyTournamentOwnerOrAdmin = async (
     });
   }
 };
+
+export const authenticateToken = authenticate;

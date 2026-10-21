@@ -26,6 +26,7 @@ router.patch('/users/:id/ban', AdminController.updateUserStatus);
 router.post('/games', AdminController.createGame);
 router.put('/games/:id', AdminController.updateGame);
 router.delete('/games/:id', AdminController.deleteGame);
+router.patch('/games/:id/toggle-status', AdminController.toggleGameStatus);
 
 // Tournament Management & Inspector (Admin Force Operations)
 router.delete('/tournaments/:id', AdminController.deleteTournament);

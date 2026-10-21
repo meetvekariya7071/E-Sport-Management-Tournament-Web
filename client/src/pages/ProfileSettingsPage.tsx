@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ChangeEmailModal } from '../components/ChangeEmailModal';
+import { DeleteAccountModal } from '../components/DeleteAccountModal';
 import {
   Mail,
   ShieldCheck,
@@ -12,13 +13,15 @@ import {
   ExternalLink,
   Lock,
   Sparkles,
-  Smartphone
+  Smartphone,
+  Trash2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const ProfileSettingsPage: React.FC = () => {
   const { user } = useAuth();
   const [isChangeEmailOpen, setIsChangeEmailOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const handleEmailSuccess = (newEmail: string) => {
@@ -215,11 +218,45 @@ export const ProfileSettingsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Danger Zone: Account Deletion */}
+      <div className="border border-red-500/30 bg-red-950/20 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <div className="p-1.5 rounded-lg bg-red-500/20 text-red-400">
+                <Trash2 className="w-4 h-4" />
+              </div>
+              <h3 className="text-lg font-heading font-bold text-white tracking-wide">
+                Delete Account & Data
+              </h3>
+            </div>
+            <p className="text-xs text-red-300/80 leading-relaxed max-w-2xl">
+              Once confirmed, this action cannot be undone. Your active registrations, player roster links, and profile records will be permanently removed or anonymized.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsDeleteModalOpen(true)}
+            className="bg-red-600 hover:bg-red-500 text-white font-bold px-5 py-2.5 rounded-xl transition-all shadow-[0_0_20px_rgba(239,68,68,0.25)] flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete My Account</span>
+          </button>
+        </div>
+      </div>
+
       {/* Change Email Modal */}
       <ChangeEmailModal
         isOpen={isChangeEmailOpen}
         onClose={() => setIsChangeEmailOpen(false)}
         onSuccess={handleEmailSuccess}
+      />
+
+      {/* Delete Account Confirmation Modal */}
+      <DeleteAccountModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
       />
     </div>
   );

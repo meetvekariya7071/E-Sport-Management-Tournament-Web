@@ -78,4 +78,45 @@ export class UserController {
       }
     }
   }
+
+  /**
+   * DELETE /api/user/account
+   * Permanently deletes user account after password verification and tournament checks.
+   */
+  static async deleteAccount(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { password } = req.body;
+
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Unauthorized: User authentication required.' });
+        return;
+      }
+
+      if (!password) {
+        res.status(400).json({ success: false, error: 'Current password is required to delete your account.' });
+        return;
+      }
+
+      const result = await AuthService.deleteAccount(userId, password);
+
+      res.clearCookie('token');
+      res.status(200).json({
+        success: true,
+        message: result.message
+      });
+    } catch (error: any) {
+      if (error.message.startsWith('BAD_REQUEST:')) {
+        res.status(400).json({ success: false, error: error.message.replace('BAD_REQUEST: ', '') });
+      } else if (error.message.startsWith('UNAUTHORIZED:')) {
+        res.status(401).json({ success: false, error: error.message.replace('UNAUTHORIZED: ', '') });
+      } else if (error.message.startsWith('FORBIDDEN:')) {
+        res.status(403).json({ success: false, error: error.message.replace('FORBIDDEN: ', '') });
+      } else if (error.message.startsWith('NOT_FOUND:')) {
+        res.status(404).json({ success: false, error: error.message.replace('NOT_FOUND: ', '') });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Failed to delete account.' });
+      }
+    }
+  }
 }

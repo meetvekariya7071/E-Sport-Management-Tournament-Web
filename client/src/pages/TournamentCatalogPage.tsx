@@ -22,6 +22,8 @@ import { gameService } from '../services/game.service';
 import { Tournament, Game, TournamentLifecycle } from '../types';
 import { getTournamentLifecycleStatus } from '../utils/tournamentLifecycle';
 import { RegistrationModal } from '../components/RegistrationModal';
+import { TournamentCard } from '../components/common/TournamentCard';
+const heroBanner = '/images/hero-banner.jpg';
 
 export const TournamentCatalogPage: React.FC = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -125,300 +127,49 @@ export const TournamentCatalogPage: React.FC = () => {
     [filteredTournaments]
   );
 
-  const getFormatBadge = (format: string) => {
-    switch (format) {
-      case 'SOLO':
-        return 'bg-purple-500/10 text-purple-400 border-purple-500/30';
-      case 'DUO':
-        return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
-      case 'SQUAD':
-        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
-      default:
-        return 'bg-slate-500/10 text-slate-400 border-slate-500/30';
-    }
-  };
 
-  const getCountdownString = (regStartDate?: string): string => {
-    if (!regStartDate) return 'Registration opens soon';
-    const target = new Date(regStartDate).getTime();
-    const now = Date.now();
-    const diffMs = target - now;
-    if (diffMs <= 0) return 'Registration opens today';
-
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    if (diffHours < 24) {
-      return `Registration opens in ${Math.max(1, diffHours)}h`;
-    }
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    return `Registration opens in ${diffDays} day${diffDays > 1 ? 's' : ''}`;
-  };
 
   // Render individual tournament card based on category
   const renderTournamentCard = (
     t: Tournament,
     category: 'LIVE' | 'REGISTRATION_OPEN' | 'FUTURE' | 'PAST'
   ) => {
-    const unitLabel = t.format === 'SOLO' ? 'Players' : 'Teams';
-    const capacityPercent = Math.min(
-      100,
-      Math.round(((t.currentCount || 0) / (t.maxParticipants || 1)) * 100)
-    );
-    const isFull = (t.currentCount || 0) >= (t.maxParticipants || 1);
-
     return (
-      <div
+      <TournamentCard
         key={t.id}
-        className={`gaming-card rounded-2xl border flex flex-col justify-between overflow-hidden transition-all duration-300 group hover:-translate-y-1 shadow-xl ${
-          category === 'LIVE'
-            ? 'border-red-500/30 hover:border-red-500/60 shadow-red-950/20'
-            : category === 'REGISTRATION_OPEN'
-            ? 'border-emerald-500/30 hover:border-emerald-400/60 shadow-emerald-950/20'
-            : category === 'FUTURE'
-            ? 'border-amber-500/30 hover:border-amber-400/60 shadow-amber-950/20'
-            : 'border-slate-800 hover:border-slate-700 shadow-black/40'
-        }`}
-      >
-        {/* Banner Image or Top Color Bar */}
-        <div className="relative h-28 w-full bg-slate-900 overflow-hidden">
-          {t.bannerImage ? (
-            <img
-              src={t.bannerImage}
-              alt={t.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 flex items-center justify-center">
-              <Trophy className="w-10 h-10 text-slate-700/60" />
-            </div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent"></div>
-
-          {/* Badges Overlay */}
-          <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-            <span
-              className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase tracking-wider backdrop-blur-md ${getFormatBadge(
-                t.format
-              )}`}
-            >
-              {t.format}
-            </span>
-
-            {category === 'LIVE' && (
-              <span className="flex items-center space-x-1.5 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/40 backdrop-blur-md animate-pulse">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
-                <span>MATCHES LIVE</span>
-              </span>
-            )}
-            {category === 'REGISTRATION_OPEN' && (
-              <span className="flex items-center space-x-1.5 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                <span>ENTRY OPEN</span>
-              </span>
-            )}
-            {category === 'FUTURE' && (
-              <span className="flex items-center space-x-1.5 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 backdrop-blur-md">
-                <Clock className="w-3 h-3 text-amber-400" />
-                <span>UPCOMING</span>
-              </span>
-            )}
-            {category === 'PAST' && (
-              <span className="flex items-center space-x-1.5 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700 backdrop-blur-md">
-                <CheckCircle2 className="w-3 h-3 text-slate-400" />
-                <span>CONCLUDED</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Card Body */}
-        <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center space-x-2 text-xs text-slate-400 mb-1.5">
-              <Gamepad2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-              <span className="font-semibold text-slate-200">
-                {t.game?.title || 'Competitive Title'}
-              </span>
-              <span>•</span>
-              <span className="text-[11px] font-mono text-slate-400">
-                {t.game?.platform || 'PC'}
-              </span>
-            </div>
-
-            <h3 className="font-heading font-extrabold text-lg text-white group-hover:text-cyan-400 transition-colors line-clamp-1">
-              {t.title}
-            </h3>
-
-            {t.description && (
-              <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed">
-                {t.description}
-              </p>
-            )}
-          </div>
-
-          {/* Meta & Metrics */}
-          <div className="space-y-3 pt-3 border-t border-slate-800/80">
-            <div className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1.5 text-slate-400 font-mono text-[11px]">
-                <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                {t.startDate ? new Date(t.startDate).toLocaleDateString() : 'TBD'}
-              </span>
-              {t.prizePool && (
-                <span className="flex items-center gap-1 text-emerald-400 font-bold font-mono text-xs">
-                  <Trophy className="w-3.5 h-3.5" />
-                  {t.prizePool}
-                </span>
-              )}
-            </div>
-
-            {/* Capacity or Countdown Indicator */}
-            {category === 'REGISTRATION_OPEN' && (
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-[11px] font-mono">
-                  <span className="text-slate-400">Roster Capacity</span>
-                  <span
-                    className={`font-bold ${
-                      isFull ? 'text-red-400' : 'text-emerald-400'
-                    }`}
-                  >
-                    {t.currentCount || 0}/{t.maxParticipants} {unitLabel} Filled
-                  </span>
-                </div>
-                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      isFull
-                        ? 'bg-red-500'
-                        : 'bg-gradient-to-r from-emerald-500 to-cyan-400 shadow-glow-cyan'
-                    }`}
-                    style={{ width: `${capacityPercent}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
-
-            {category === 'FUTURE' && (
-              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between text-xs">
-                <span className="text-[11px] font-mono text-amber-300 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  {getCountdownString(t.registrationStartDate)}
-                </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  Cap: {t.maxParticipants} {unitLabel}
-                </span>
-              </div>
-            )}
-
-            {category === 'LIVE' && (
-              <div className="p-2 rounded-xl bg-red-950/30 border border-red-500/20 flex items-center justify-between text-xs">
-                <span className="text-[11px] font-mono text-red-300 flex items-center gap-1.5">
-                  <Radio className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                  Live Bracket In Progress
-                </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  {t.currentCount || 0} {unitLabel} Competing
-                </span>
-              </div>
-            )}
-
-            {category === 'PAST' && (
-              <div className="p-2 rounded-xl bg-slate-800/40 border border-slate-700/60 flex items-center justify-between text-xs">
-                <span className="text-[11px] font-mono text-slate-300 flex items-center gap-1.5">
-                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
-                  Champion Verified
-                </span>
-                <span className="text-[10px] font-mono text-slate-400">
-                  {t.currentCount || 0} {unitLabel} Showdown
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Card Actions Footer */}
-        <div className="p-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-3 bg-slate-950/60">
-          {category === 'LIVE' && (
-            <>
-              <Link
-                to={`/tournaments/${t.id}/live`}
-                className="flex-1 py-2 px-3 text-xs font-heading font-bold rounded-xl bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-1.5 shadow-lg shadow-red-900/30 transition-all"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>Watch Live / Standings</span>
-              </Link>
-              <span className="text-[11px] font-mono text-slate-500 px-2 py-1 rounded bg-slate-900/80 border border-slate-800 shrink-0">
-                Registration Closed
-              </span>
-            </>
-          )}
-
-          {category === 'REGISTRATION_OPEN' && (
-            <>
-              <Link
-                to={`/tournaments/${t.id}`}
-                className="px-3 py-2 text-xs font-semibold rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-colors flex items-center gap-1"
-              >
-                <span>Details</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-              {!isFull ? (
-                <button
-                  onClick={() => setActiveRegTournament(t)}
-                  className="flex-1 py-2 px-4 text-xs font-heading font-extrabold rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 uppercase tracking-wider shadow-glow-cyan transition-all"
-                >
-                  REGISTER NOW
-                </button>
-              ) : (
-                <span className="text-xs font-mono font-bold text-red-400 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/30">
-                  Slots Full
-                </span>
-              )}
-            </>
-          )}
-
-          {category === 'FUTURE' && (
-            <>
-              <Link
-                to={`/tournaments/${t.id}`}
-                className="flex-1 py-2 px-3 text-xs font-heading font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 hover:border-cyan-500/40 flex items-center justify-center gap-1.5 transition-all"
-              >
-                <span>View Rules & Schedule</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </>
-          )}
-
-          {category === 'PAST' && (
-            <>
-              <Link
-                to={`/tournaments/${t.id}`}
-                className="flex-1 py-2 px-3 text-xs font-heading font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 hover:border-slate-600 flex items-center justify-center gap-1.5 transition-all"
-              >
-                <Trophy className="w-3.5 h-3.5 text-yellow-400" />
-                <span>View Results</span>
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
+        tournament={t}
+        category={category}
+        onRegister={setActiveRegTournament}
+      />
     );
   };
 
   return (
     <div className="space-y-12 py-10 px-4 max-w-7xl mx-auto animate-fadeIn">
       {/* Catalog Hero Banner */}
-      <div className="relative rounded-3xl p-8 sm:p-12 overflow-hidden border border-cyan-500/20 bg-gradient-to-br from-slate-900 via-gaming-card to-slate-950 shadow-2xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="relative w-full overflow-hidden rounded-3xl p-8 md:p-12 border border-emerald-500/30 bg-slate-950 shadow-[0_0_50px_-15px_rgba(16,185,129,0.3)]">
+        {/* Shared Arena Backdrop Layer */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-60 md:opacity-70 scale-105 pointer-events-none transition-all duration-700"
+          style={{ backgroundImage: `url(${heroBanner})` }}
+        />
+
+        {/* Directional Gradient Scrim: Crisp Readability Guard */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/75 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
+
+        {/* Radiant Emerald Accent Glow */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl space-y-4">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-mono tracking-wider uppercase">
-            <Flame className="w-3.5 h-3.5 text-cyan-400" />
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono tracking-wider uppercase">
+            <Flame className="w-3.5 h-3.5 text-emerald-400" />
             <span>Competitive Arena Catalog</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-heading font-extrabold text-white tracking-wide leading-tight">
             EXPLORE TOURNAMENTS & <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">
               CLAIM YOUR GLORY
             </span>
           </h1>

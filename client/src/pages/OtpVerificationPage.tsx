@@ -228,6 +228,15 @@ export const OtpVerificationPage: React.FC = () => {
             Verify Your LeagueForge Account
           </h2>
 
+          {searchParams.get('reason') === 'unverified_login' && (
+            <div className="my-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center space-x-2.5 text-left">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>
+                <strong>Verification Required:</strong> Your account email has not been activated yet. A fresh 6-digit confirmation code has been dispatched to your inbox.
+              </span>
+            </div>
+          )}
+
           {/* Masked Email & Inline Edit Trigger */}
           <div className="mb-6 space-y-3">
             <p className="text-xs text-slate-400 leading-relaxed">

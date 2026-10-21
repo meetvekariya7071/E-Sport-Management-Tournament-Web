@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Gamepad2, Trophy, Users, Monitor, Smartphone, Globe, Search, ArrowRight, Sparkles } from 'lucide-react';
 import { gameService } from '../services/game.service';
 import { Game } from '../types';
+import { GameCard } from '../components/common/GameCard';
+const heroBanner = '/images/hero-banner.jpg';
 
 export const GamesCatalogPage: React.FC = () => {
   const [games, setGames] = useState<Game[]>([]);
@@ -52,15 +54,30 @@ export const GamesCatalogPage: React.FC = () => {
   return (
     <div className="space-y-10 py-10 px-4 max-w-7xl mx-auto">
       {/* Header Banner */}
-      <div className="relative rounded-3xl p-8 sm:p-12 overflow-hidden border border-cyan-500/20 bg-gradient-to-br from-slate-900 via-gaming-card to-slate-950 shadow-2xl">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative w-full overflow-hidden rounded-3xl p-8 md:p-12 border border-cyan-500/30 bg-slate-950 shadow-[0_0_50px_-15px_rgba(6,182,212,0.3)]">
+        {/* Shared Arena Backdrop Layer */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-60 md:opacity-70 scale-105 pointer-events-none transition-all duration-700"
+          style={{ backgroundImage: `url(${heroBanner})` }}
+        />
+
+        {/* Directional Gradient Scrim: Crisp Readability Guard */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/75 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
+
+        {/* Electric Cyan Accent Glow */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
+
         <div className="relative z-10 max-w-2xl space-y-4">
           <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-mono tracking-wider uppercase">
             <Gamepad2 className="w-3.5 h-3.5 text-cyan-400" />
             <span>Official Titles Catalog</span>
           </div>
           <h1 className="text-3xl sm:text-5xl font-heading font-extrabold text-white tracking-wide">
-            EXPLORE <span className="text-cyan-400">ESPORTS GAMES</span>
+            EXPLORE{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400">
+              ESPORTS GAMES
+            </span>
           </h1>
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
             Browse official competitive game titles supported by the platform. Jump straight into active tournament brackets, solo qualifiers, and duo/squad championships.
@@ -132,64 +149,7 @@ export const GamesCatalogPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {currentItems.map((game) => (
-            <div
-              key={game.id}
-              className="gaming-card rounded-2xl overflow-hidden border border-slate-800 hover:border-cyan-500/50 transition-all duration-300 group flex flex-col justify-between"
-            >
-              {/* Cover Image or Fallback */}
-              <div className="relative h-48 w-full bg-slate-900 overflow-hidden">
-                {game.coverImage ? (
-                  <img
-                    src={game.coverImage}
-                    alt={game.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950">
-                    <Gamepad2 className="w-16 h-16 text-slate-700" />
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-gaming-card via-transparent to-black/30" />
-
-                {/* Platform Badge */}
-                <div className="absolute top-3 left-3 flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700/80 text-xs text-slate-200">
-                  {getPlatformIcon(game.platform)}
-                  <span className="font-mono text-[11px] font-semibold">{game.platform}</span>
-                </div>
-
-                {/* Team / Solo Badge */}
-                <div className="absolute top-3 right-3 px-2 py-0.5 rounded-md bg-cyan-500/20 backdrop-blur-md border border-cyan-500/40 text-[10px] font-mono text-cyan-300 uppercase tracking-wider font-bold">
-                  {game.isTeamBased ? `Team (${game.minTeamSize}-${game.maxTeamSize})` : 'Solo'}
-                </div>
-              </div>
-
-              {/* Card Body */}
-              <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
-                <div>
-                  <span className="text-[11px] font-mono text-cyan-400 uppercase tracking-wider">
-                    {game.genre}
-                  </span>
-                  <h3 className="text-xl font-heading font-bold text-white group-hover:text-cyan-400 transition-colors mt-0.5">
-                    {game.title}
-                  </h3>
-                </div>
-
-                <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5 text-xs text-slate-400 font-mono">
-                    <Trophy className="w-4 h-4 text-amber-400" />
-                    <span>{game._count?.tournaments || 0} Active Events</span>
-                  </div>
-
-                  <button
-                    onClick={() => navigate(`/tournaments`)}
-                    className="inline-flex items-center space-x-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 font-mono tracking-wider transition-colors"
-                  >
-                    <span>Tournaments</span>
-                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
-                  </button>
-                </div>
-              </div>
-            </div>
+            <GameCard key={game.id} game={game} />
           ))}
         </div>
       )}

@@ -704,7 +704,7 @@ export class TournamentService {
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       include: {
-        game: { select: { id: true, title: true, slug: true, genre: true, isTeamBased: true } },
+        game: { select: { id: true, title: true, slug: true, genre: true, isTeamBased: true, coverImage: true, platform: true } },
         organizer: { select: { id: true, username: true, email: true } },
         participants: {
           include: {

@@ -63,6 +63,7 @@ model Game {
   isTeamBased Boolean       @default(false) @map("is_team_based")
   minTeamSize Int           @default(1) @map("min_team_size")
   maxTeamSize Int           @default(1) @map("max_team_size")
+  isActive    Boolean       @default(true) @map("is_active")
   metadata    String?       @default("{}")
   createdById String?       @map("created_by_id")
   createdAt   DateTime      @default(now()) @map("created_at")

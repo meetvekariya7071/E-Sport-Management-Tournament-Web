@@ -8,6 +8,9 @@ const router = Router();
 // Public: Browse all games
 router.get('/', GameController.getAllGames);
 
+// Public: Get dedicated game details by ID or slug
+router.get('/:idOrSlug', GameController.getGameByIdOrSlug);
+
 // Admin-Only: Add new game to catalog
 router.post(
   '/',
@@ -30,6 +33,14 @@ router.delete(
   authenticate,
   authorizeRoles([Roles.ADMIN]),
   GameController.deleteGame
+);
+
+// Admin-Only: Archive/Unarchive game
+router.patch(
+  '/:id/toggle-status',
+  authenticate,
+  authorizeRoles([Roles.ADMIN]),
+  GameController.toggleGameStatus
 );
 
 export default router;

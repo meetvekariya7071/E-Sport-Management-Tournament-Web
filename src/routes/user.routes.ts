@@ -24,4 +24,11 @@ router.post(
   UserController.confirmEmailChange
 );
 
+router.delete(
+  '/account',
+  authenticate,
+  authRateLimiter,
+  UserController.deleteAccount
+);
+
 export default router;

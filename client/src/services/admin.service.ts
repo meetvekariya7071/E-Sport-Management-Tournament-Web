@@ -158,8 +158,14 @@ export const adminService = {
     return res.data.data;
   },
 
-  async deleteGame(gameId: string): Promise<void> {
-    await api.delete(`/admin/games/${gameId}`);
+  async deleteGame(gameId: string): Promise<{ success: boolean; softDeleted?: boolean; message: string }> {
+    const res = await api.delete(`/admin/games/${gameId}`);
+    return res.data;
+  },
+
+  async toggleGameStatus(gameId: string, isActive?: boolean): Promise<{ success: boolean; message: string; data: Game }> {
+    const res = await api.patch(`/admin/games/${gameId}/toggle-status`, { isActive });
+    return res.data;
   },
 
   async getAuditLogs(params?: {

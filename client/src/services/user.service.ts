@@ -20,5 +20,13 @@ export const userService = {
   }> {
     const res = await api.post('/user/confirm-email-change', { otp });
     return res.data;
+  },
+
+  /**
+   * Permanently deletes user account and records.
+   */
+  async deleteAccount(password: string): Promise<{ success: boolean; message: string }> {
+    const res = await api.delete('/user/account', { data: { password } });
+    return res.data;
   }
 };
