@@ -148,7 +148,6 @@ export const OtpVerificationPage: React.FC = () => {
       setTimeout(() => {
         if (res.data.user.role === 'ADMIN') navigate('/admin');
         else if (res.data.user.role === 'ORGANIZER') navigate('/organizer');
-        else if (res.data.user.role === 'REFEREE') navigate('/referee/portal');
         else navigate('/player');
       }, 1000);
     } catch (err: any) {

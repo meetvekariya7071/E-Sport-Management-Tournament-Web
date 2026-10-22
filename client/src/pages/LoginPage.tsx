@@ -38,7 +38,6 @@ export const LoginPage: React.FC = () => {
       // Redirect to proper role dashboard
       if (data.user.role === 'ADMIN') navigate('/admin');
       else if (data.user.role === 'ORGANIZER') navigate('/organizer');
-      else if (data.user.role === 'REFEREE') navigate('/referee/portal');
       else navigate('/player');
     } catch (err: any) {
       // Intercept unverified account status without setting auth tokens
@@ -150,23 +149,28 @@ export const LoginPage: React.FC = () => {
               </div>
             </div>
 
-
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-black font-heading font-bold text-sm tracking-wider shadow-glow-cyan transition-all flex items-center justify-center space-x-2"
+              className="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-black font-semibold py-2.5 rounded-xl transition-all shadow-glow-cyan disabled:opacity-50 text-sm mt-2 flex items-center justify-center space-x-2"
             >
-              <span>{isLoading ? 'Authenticating...' : 'Login'}</span>
-              <ArrowRight className="w-4 h-4" />
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                <span>Sign In</span>
+              )}
             </button>
           </form>
 
-          {/* Quick Demo Fills */}
-          <div className="mt-6 pt-6 border-t border-slate-800 text-center">
-            <span className="text-[11px] font-mono text-slate-400 block mb-2 uppercase tracking-wider">
-              Fast Demo Accounts (Pre-configured)
+          {/* Quick Demo Logins */}
+          <div className="mt-6 pt-6 border-t border-slate-800">
+            <span className="block text-[11px] font-mono text-slate-500 uppercase tracking-wider mb-2 text-center">
+              Quick Fill Demo Accounts
             </span>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+            <div className="grid grid-cols-2 gap-2 text-xs">
               <button
                 type="button"
                 onClick={() => handleDemoFill('admin@esports.com', 'PASSWORD123!')}
@@ -183,13 +187,6 @@ export const LoginPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoFill('referee@esports.com', 'PASSWORD123!')}
-                className="py-1.5 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-medium"
-              >
-                Referee
-              </button>
-              <button
-                type="button"
                 onClick={() => handleDemoFill('player1@esports.com', 'PASSWORD123!')}
                 className="py-1.5 px-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium"
               >
@@ -198,7 +195,7 @@ export const LoginPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleDemoFill('player2@esports.com', 'PASSWORD123!')}
-                className="py-1.5 px-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 font-medium col-span-2 sm:col-span-1"
+                className="py-1.5 px-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 font-medium"
               >
                 Player 2 (Partner)
               </button>

@@ -98,28 +98,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, setMobileO
             isActiveRule: (p) => p.includes('/disputes')
           }
         ];
-      case 'REFEREE':
-        return [
-          {
-            to: '/referee/portal',
-            label: 'Referee Portal',
-            icon: LayoutDashboard,
-            isActiveRule: (p) =>
-              (p.startsWith('/referee') && !p.includes('/disputes')) || p === '/dashboard/referee'
-          },
-          {
-            to: '/referee/disputes',
-            label: 'Disputes Review Board',
-            icon: AlertTriangle,
-            isActiveRule: (p) => p.includes('/referee/disputes')
-          },
-          {
-            to: '/tournaments',
-            label: 'Tournament Matrix',
-            icon: Trophy,
-            isActiveRule: (p) => p.startsWith('/tournaments')
-          }
-        ];
       case 'PLAYER':
       default:
         return [

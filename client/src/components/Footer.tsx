@@ -24,7 +24,7 @@ export const Footer: React.FC = () => {
             </Link>
 
             <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
-              Next-generation esports tournament and bracket management. Empowering competitive players, verified organizers, and official referees worldwide.
+              Next-generation esports tournament and bracket management. Empowering competitive players and verified organizers worldwide with automated bracket management.
             </p>
 
             <div className="flex items-center space-x-2 pt-1 text-[11px] font-mono text-emerald-400">

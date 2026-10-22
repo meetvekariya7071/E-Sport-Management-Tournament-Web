@@ -112,7 +112,7 @@ router.post(
 router.put(
   '/:id/matches/:matchId',
   authenticate,
-  authorizeRoles([Roles.ADMIN, Roles.ORGANIZER, Roles.REFEREE]),
+  authorizeRoles([Roles.ADMIN, Roles.ORGANIZER]),
   verifyTournamentOwnerOrAdmin,
   validateBody(updateMatchScoreSchema),
   TournamentController.updateMatchScore
@@ -242,15 +242,15 @@ router.post(
   TournamentController.substituteTeamPlayer
 );
 
-// Set Custom Match Room Credentials (Organizer, Admin, Referee)
+// Set Custom Match Room Credentials (Organizer, Admin)
 router.post(
   '/:id/matches/:matchId/credentials',
   authenticate,
-  authorizeRoles([Roles.ADMIN, Roles.ORGANIZER, Roles.REFEREE]),
+  authorizeRoles([Roles.ADMIN, Roles.ORGANIZER]),
   TournamentController.setMatchCredentials
 );
 
-// Get Custom Match Room Credentials (Checked-in Participants, Referee, Organizer, Admin)
+// Get Custom Match Room Credentials (Checked-in Participants, Organizer, Admin)
 router.get(
   '/:id/matches/:matchId/credentials',
   authenticate,

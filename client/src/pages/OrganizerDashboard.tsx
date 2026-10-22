@@ -365,7 +365,7 @@ export const OrganizerDashboard: React.FC<OrganizerDashboardProps> = ({ defaultC
               </div>
               <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
                 <span className="font-bold text-amber-400 uppercase font-mono tracking-wider">Fair Play & Dispute Protocols</span>
-                <p className="text-slate-400 text-[11px]">Scores must be submitted within 15 minutes of match completion. Disputed results enter Referee arbitration immediately.</p>
+                <p className="text-slate-400 text-[11px]">Scores must be submitted within 15 minutes of match completion. Disputed results enter Organizer arbitration immediately.</p>
               </div>
             </div>
 

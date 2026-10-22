@@ -20,9 +20,7 @@ import {
   Award,
   MinusCircle
 } from 'lucide-react';
-import { refereeApi } from '../services/referee.service';
 import { disputeApi, DisputeItem } from '../services/dispute.service';
-import { SanctionModal } from '../components/SanctionModal';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 
@@ -55,22 +53,14 @@ export const DisputesReviewPage: React.FC = () => {
     }>
   >([]);
 
-  // Sanction modal state
-  const [sanctionTarget, setSanctionTarget] = useState<{
-    id: string;
-    name: string;
-    tournamentId?: string;
-    matchId?: string;
-  } | null>(null);
-
   const [submitting, setSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const loadDisputes = async () => {
     setLoading(true);
     try {
-      // Use refereeApi.getAssignedDisputes or fallback to disputeApi.getUserDisputes
-      const data = await refereeApi.getAssignedDisputes().catch(() => disputeApi.getUserDisputes());
+      // Retrieve dispute queue
+      const data = await disputeApi.getUserDisputes();
       setDisputes(data || []);
     } catch (err: any) {
       console.error('Failed to load disputes:', err);
@@ -130,7 +120,7 @@ export const DisputesReviewPage: React.FC = () => {
         'Insufficient evidence provided or the reported incident does not violate official tournament rulebook.'
       );
     } else {
-      setResolutionNotes('Ticket is under active referee investigation.');
+      setResolutionNotes('Ticket is under active staff investigation.');
     }
   };
 
@@ -138,7 +128,7 @@ export const DisputesReviewPage: React.FC = () => {
     e.preventDefault();
     if (!selectedDispute || !modalAction) return;
     if (!resolutionNotes.trim()) {
-      alert('Please enter official referee explanation notes.');
+      alert('Please enter official adjudication explanation notes.');
       return;
     }
 
@@ -172,10 +162,26 @@ export const DisputesReviewPage: React.FC = () => {
         }
       }
 
-      await refereeApi.resolveDispute(selectedDispute.id, {
-        action: modalAction,
+      const apiAction: 'INVESTIGATE' | 'ACCEPT_OVERWRITE' | 'DISMISS' =
+        modalAction === 'UPHOLD'
+          ? 'ACCEPT_OVERWRITE'
+          : modalAction === 'DISMISS'
+          ? 'DISMISS'
+          : 'INVESTIGATE';
+
+      await disputeApi.resolveDispute(selectedDispute.id, {
+        action: apiAction,
         resolutionNotes: resolutionNotes.trim(),
-        overturnResult
+        scoreAdjustments:
+          upholdType === 'OVERWRITE_SCORES'
+            ? scoreAdjustments.map((s) => ({
+                participantId: s.participantId,
+                score: s.score,
+                kills: s.kills,
+                placement: s.placement ?? undefined,
+                isWinner: s.isWinner
+              }))
+            : undefined
       });
 
       setFeedbackMsg({
@@ -306,10 +312,10 @@ export const DisputesReviewPage: React.FC = () => {
 
           <div className="flex items-center space-x-2">
             <Link
-              to={role === 'ADMIN' ? '/admin' : role === 'ORGANIZER' ? '/organizer' : '/referee/portal'}
+              to={role === 'ADMIN' ? '/admin' : '/organizer'}
               className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition-colors"
             >
-              {role === 'ADMIN' ? 'Admin Overview' : role === 'ORGANIZER' ? 'Organizer Dashboard' : 'Referee Portal'}
+              {role === 'ADMIN' ? 'Admin Overview' : 'Organizer Dashboard'}
             </Link>
             <button
               onClick={loadDisputes}
@@ -426,13 +432,6 @@ export const DisputesReviewPage: React.FC = () => {
 
                   <div className="flex items-center gap-2">
                     {getStatusBadge(dispute.status)}
-                    <Link
-                      to={`/referee/matches/${dispute.matchId}/verify`}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg text-xs font-mono flex items-center gap-1 border border-slate-700 transition-colors"
-                    >
-                      <span>Verify Scorecard</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </Link>
                   </div>
                 </div>
 
@@ -466,24 +465,6 @@ export const DisputesReviewPage: React.FC = () => {
                         </span>
                       </div>
                     </div>
-
-                    {accused && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSanctionTarget({
-                            id: accused.id,
-                            name: accused.name,
-                            tournamentId: dispute.tournamentId,
-                            matchId: dispute.matchId
-                          })
-                        }
-                        className="px-2.5 py-1 text-[11px] font-mono bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg flex items-center gap-1 transition-colors"
-                      >
-                        <ShieldAlert className="w-3 h-3" />
-                        <span>Sanction Accused</span>
-                      </button>
-                    )}
                   </div>
                 </div>
 
@@ -518,7 +499,7 @@ export const DisputesReviewPage: React.FC = () => {
                 {dispute.resolutionNotes && (
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs space-y-1">
                     <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                      <span>Adjudicated by {dispute.resolvedBy?.username || 'Referee'}</span>
+                      <span>Adjudicated by {dispute.resolvedBy?.username || 'Staff'}</span>
                       <span>
                         {dispute.resolvedAt ? new Date(dispute.resolvedAt).toLocaleString() : ''}
                       </span>
@@ -767,7 +748,7 @@ export const DisputesReviewPage: React.FC = () => {
               {/* Official Notes */}
               <div className="space-y-1">
                 <label className="text-xs font-mono text-slate-300 flex items-center gap-1">
-                  <span>Official Referee Explanation (Sent to Player Notification)</span>
+                  <span>Official Decision Explanation (Sent to Player Notification)</span>
                   <span className="text-red-400">*</span>
                 </label>
                 <textarea
@@ -805,21 +786,6 @@ export const DisputesReviewPage: React.FC = () => {
             </form>
           </div>
         </div>
-      )}
-
-      {/* Disciplinary Sanction Modal */}
-      {sanctionTarget && (
-        <SanctionModal
-          isOpen={true}
-          onClose={() => setSanctionTarget(null)}
-          targetId={sanctionTarget.id}
-          targetName={sanctionTarget.name}
-          tournamentId={sanctionTarget.tournamentId}
-          matchId={sanctionTarget.matchId}
-          onSuccess={() => {
-            loadDisputes();
-          }}
-        />
       )}
     </div>
   );

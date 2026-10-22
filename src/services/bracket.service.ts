@@ -610,7 +610,7 @@ export class BracketService {
             matches: {
               orderBy: { matchNumber: 'asc' },
               include: {
-                referee: { select: { id: true, username: true } },
+                
                 results: {
                   include: {
                     participant: {
@@ -680,7 +680,7 @@ export class BracketService {
           roomInstructions: m.roomInstructions,
           scheduledAt: m.scheduledAt,
           completedAt: m.completedAt,
-          referee: m.referee,
+          
           competitors
         };
       })
@@ -2023,13 +2023,13 @@ export class BracketService {
       throw new Error('NOT_FOUND: Match not found.');
     }
 
-    // Permission check: Admin, Organizer of tournament, or assigned Referee
+    // Permission check: Admin or Organizer of tournament
     const isAdmin = role === 'ADMIN';
     const isOrganizer = tournament.organizerId === userId;
-    const isReferee = match.refereeId === userId;
+    
 
-    if (!isAdmin && !isOrganizer && !isReferee) {
-      throw new Error('FORBIDDEN: Only tournament staff (Admin, Organizer, Referee) can distribute match credentials.');
+    if (!isAdmin && !isOrganizer) {
+      throw new Error('FORBIDDEN: Only tournament staff (Admin, Organizer) can distribute match credentials.');
     }
 
     const updatedMatch = await prisma.match.update({
@@ -2131,8 +2131,8 @@ export class BracketService {
       throw new Error('NOT_FOUND: Match not found.');
     }
 
-    // Staff access (Admins, Organizers, assigned Referees can always inspect credentials)
-    const isStaff = role === 'ADMIN' || tournament.organizerId === userId || match.refereeId === userId;
+    // Staff access (Admins and Organizers can always inspect credentials)
+    const isStaff = role === 'ADMIN' || tournament.organizerId === userId;
     if (isStaff) {
       return {
         isConcluded: match.status === MatchStatuses.COMPLETED,

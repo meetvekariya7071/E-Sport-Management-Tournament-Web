@@ -8,7 +8,6 @@ import tournamentRoutes from './routes/tournament.routes';
 import adminRoutes from './routes/admin.routes';
 import organizerRoutes from './routes/organizer.routes';
 import playerRoutes from './routes/player.routes';
-import refereeRoutes from './routes/referee.routes';
 import disputeRoutes from './routes/dispute.routes';
 import notificationRoutes from './routes/notification.routes';
 import userRoutes from './routes/user.routes';
@@ -152,10 +151,10 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/organizer', organizerRoutes);
 app.use('/api/player', playerRoutes);
-app.use('/api/referee', refereeRoutes);
 app.use('/api/disputes', disputeRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/users', userRoutes);
 
 // 404 Handler - Centralized Format
 app.use((req: Request, res: Response) => {

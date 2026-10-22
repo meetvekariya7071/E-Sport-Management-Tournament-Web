@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'ORGANIZER' | 'PLAYER' | 'REFEREE';
+export type Role = 'ADMIN' | 'ORGANIZER' | 'PLAYER';
 export type TournamentFormat = 'SOLO' | 'DUO' | 'SQUAD';
 export type TournamentStatus = 'DRAFT' | 'REGISTRATION_OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 export type TournamentLifecycle = 'FUTURE' | 'REGISTRATION_OPEN' | 'LIVE' | 'PAST';
@@ -119,7 +119,6 @@ export interface TournamentDetails extends Tournament {
       id: string;
       matchNumber: number;
       status: string;
-      referee?: { id: string; username: string } | null;
       results: Array<{
         score: number;
         kills: number;
@@ -194,7 +193,6 @@ export interface BracketMatch {
   roomInstructions?: string | null;
   scheduledAt?: string | null;
   completedAt?: string | null;
-  referee?: { id: string; username: string } | null;
   competitors: BracketCompetitor[];
 }
 

@@ -61,37 +61,7 @@ async function main() {
     }
   });
 
-  // 1.3 Referee (Official Fair Play & Anti-Cheat Adjudicator)
-  const referee = await prisma.user.create({
-    data: {
-      email: 'referee@esports.com',
-      username: 'JudgeDredd',
-      passwordHash,
-      role: 'REFEREE',
-      isEmailVerified: true,
-      emailVerificationToken: null,
-      emailVerificationExpires: null,
-      bio: 'Official Fair Play & Anti-Cheat Adjudicator',
-      avatarUrl: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=200&auto=format&fit=crop&q=80'
-    }
-  });
-
-  // Secondary alias for referee
-  const ref1 = await prisma.user.create({
-    data: {
-      email: 'ref1@esports.com',
-      username: 'RefStaff1',
-      passwordHash,
-      role: 'REFEREE',
-      isEmailVerified: true,
-      emailVerificationToken: null,
-      emailVerificationExpires: null,
-      bio: 'Assistant Referee Staff',
-      avatarUrl: 'https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=200&auto=format&fit=crop&q=80'
-    }
-  });
-
-  // 1.4 Player 1 (Solo)
+  // 1.3 Player 1 (Solo)
   const player1 = await prisma.user.create({
     data: {
       email: 'player1@esports.com',
@@ -121,7 +91,7 @@ async function main() {
     }
   });
 
-  console.log(' ✅ Seeded demo accounts: Super Admin, Organizer, Referee, Player 1, Player 2.');
+  console.log(' ✅ Seeded demo accounts: Super Admin, Organizer, Player 1, Player 2.');
 
   // =========================================================================
   // 2. SEED GAMES CATALOG (Strictly 5 Recognized Titles)
@@ -256,12 +226,11 @@ async function main() {
       tournamentId: soloTournament.id,
       roundId: soloRound.id,
       matchNumber: 1,
-      refereeId: referee.id,
       status: 'COMPLETED',
       isVerified: true,
-      verifiedById: referee.id,
+      verifiedById: organizer.id,
       verifiedAt: new Date(),
-      verificationNotes: 'Match verified and scorecard sealed by referee.',
+      verificationNotes: 'Match verified and scorecard sealed by tournament organizer.',
       scheduledAt: new Date(Date.now() - 3600000),
       completedAt: new Date(Date.now() - 1800000)
     }
@@ -361,14 +330,13 @@ async function main() {
       tournamentId: duoTournament.id,
       roundId: duoRound.id,
       matchNumber: 1,
-      refereeId: referee.id,
       status: 'IN_PROGRESS',
       isVerified: false,
       scheduledAt: new Date(Date.now() - 3600000 * 2)
     }
   });
 
-  // Sample Dispute Ticket assigned for Referee resolution
+  // Sample Dispute Ticket assigned for Organizer resolution
   await prisma.dispute.create({
     data: {
       id: 'dispute-demo-001',
@@ -376,7 +344,7 @@ async function main() {
       matchId: duoMatch.id,
       claimantId: player2.id,
       reason: 'INCORRECT_SCORE',
-      description: 'Player requesting referee verification of goal assist telemetry during overtime.',
+      description: 'Player requesting organizer review of goal assist telemetry during overtime.',
       status: 'OPEN',
       proofUrl: 'https://clips.twitch.tv/example_esports_clip'
     }
@@ -545,7 +513,6 @@ async function main() {
   console.log('🔑 Demo User Accounts:');
   console.log(' - Super Admin:  admin@esports.com     / PASSWORD123! (Role: ADMIN)');
   console.log(' - Organizer:    organizer@esports.com / PASSWORD123! (Role: ORGANIZER)');
-  console.log(' - Referee:      referee@esports.com   / PASSWORD123! (Role: REFEREE)');
   console.log(' - Player 1:     player1@esports.com   / PASSWORD123! (Role: PLAYER)');
   console.log(' - Player 2:     player2@esports.com   / PASSWORD123! (Role: PLAYER)');
   console.log('🎮 Games Catalog (5):');

@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 
 
-export type DatabaseTab = 'players' | 'organizers' | 'referees' | 'games' | 'tournaments';
+export type DatabaseTab = 'players' | 'organizers' | 'games' | 'tournaments';
 
 interface AdminDashboardProps {
   defaultTab?: DatabaseTab;
@@ -42,7 +42,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
     if (hash === 'tournaments') return 'tournaments';
     if (hash === 'users' || hash === 'players') return 'players';
     if (hash === 'organizers') return 'organizers';
-    if (hash === 'referees') return 'referees';
     return defaultTab;
   };
 
@@ -130,9 +129,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
     } else if (hash === 'organizers' && activeTab !== 'organizers') {
       setTableData([]);
       setActiveTab('organizers');
-    } else if (hash === 'referees' && activeTab !== 'referees') {
-      setTableData([]);
-      setActiveTab('referees');
     }
   }, [location.hash]);
 
@@ -299,7 +295,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
 
         {/* Tab Headers matching BWP_pro mockup exactly */}
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
-          {(['players', 'organizers', 'referees', 'games', 'tournaments'] as DatabaseTab[]).map(
+          {(['players', 'organizers', 'games', 'tournaments'] as DatabaseTab[]).map(
             (tab) => (
               <button
                 key={tab}
@@ -317,7 +313,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
               >
                 {tab === 'players' && <Users className="w-3.5 h-3.5" />}
                 {tab === 'organizers' && <Trophy className="w-3.5 h-3.5" />}
-                {tab === 'referees' && <Shield className="w-3.5 h-3.5" />}
                 {tab === 'games' && <Gamepad2 className="w-3.5 h-3.5" />}
                 {tab === 'tournaments' && <Swords className="w-3.5 h-3.5" />}
                 <span>{tab}</span>
@@ -392,17 +387,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
                 </tr>
               )}
 
-              {activeTab === 'referees' && (
-                <tr>
-                  <th className="py-3 px-4">Referee Name</th>
-                  <th className="py-3 px-4">Referee UUID</th>
-                  <th className="py-3 px-4">Joined Date</th>
-                  <th className="py-3 px-4">Matches Adjudicated</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Moderation Action</th>
-                </tr>
-              )}
-
               {activeTab === 'games' && (
                 <tr>
                   <th className="py-3 px-4 cursor-pointer" onClick={() => handleSort('title')}>
@@ -467,7 +451,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
                 return (currentItems || []).map((item) => {
                   if (!item) return null;
 
-                  if (activeTab === 'players' || activeTab === 'organizers' || activeTab === 'referees') {
+                  if (activeTab === 'players' || activeTab === 'organizers') {
                     if (!item.username && !item.email) return null;
                     const username = item.username ? String(item.username) : 'User';
                     const uuid = item.id ? `${String(item.id).slice(0, 8)}...` : '—';
@@ -494,7 +478,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
                           {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}
                         </td>
                         <td className="py-3.5 px-4 font-mono text-cyan-400 font-semibold">
-                          {item.gamesPlayed ?? item.tournamentsManaged ?? item.matchesAdjudicated ?? 0}
+                          {item.gamesPlayed ?? item.tournamentsManaged ?? 0}
                         </td>
                         <td className="py-3.5 px-4">
                           {item.isBanned ? (

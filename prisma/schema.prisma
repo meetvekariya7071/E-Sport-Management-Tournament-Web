@@ -9,14 +9,14 @@ generator client {
 
 // =========================================================================
 // USER & ROLE-BASED ACCESS CONTROL
-// Roles: ADMIN | ORGANIZER | PLAYER | REFEREE
+// Roles: ADMIN | ORGANIZER | PLAYER
 // =========================================================================
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
   username     String    @unique
   passwordHash String    @map("password_hash")
-  role         String    @default("PLAYER") // "ADMIN" | "ORGANIZER" | "PLAYER" | "REFEREE"
+  role         String    @default("PLAYER") // "ADMIN" | "ORGANIZER" | "PLAYER"
   isBanned     Boolean   @default(false) @map("is_banned")
   banReason    String?   @map("ban_reason")
   bio          String?
@@ -39,8 +39,7 @@ model User {
   captainTeams         Team[]                  @relation("TeamCaptain")
   teamMemberships      TeamMember[]
   participations       TournamentParticipant[]
-  adjudicatedMatches   Match[]                 @relation("RefereeMatches")
-  verifiedMatches      Match[]                 @relation("RefereeVerifiedMatches")
+  verifiedMatches      Match[]                 @relation("MatchVerifier")
   raisedDisputes       Dispute[]               @relation("ClaimantDisputes")
   resolvedDisputes     Dispute[]               @relation("ResolvedDisputes")
   notifications        Notification[]          @relation("UserNotifications")
@@ -211,7 +210,6 @@ model Match {
   tournamentId      String        @map("tournament_id")
   roundId           String        @map("round_id")
   matchNumber       Int           @map("match_number")
-  refereeId         String?       @map("referee_id")
   status            String        @default("PENDING") // "PENDING" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "DISPUTED"
   isVerified        Boolean       @default(false) @map("is_verified")
   verifiedById      String?       @map("verified_by_id")
@@ -228,15 +226,13 @@ model Match {
 
   tournament        Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   round             MatchRound    @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  referee           User?         @relation("RefereeMatches", fields: [refereeId], references: [id], onDelete: SetNull)
-  verifiedBy        User?         @relation("RefereeVerifiedMatches", fields: [verifiedById], references: [id], onDelete: SetNull)
+  verifiedBy        User?         @relation("MatchVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
   results           ScoreRecord[]
   disputes          Dispute[]
 
   @@unique([roundId, matchNumber])
   @@index([tournamentId, roundId, matchNumber])
   @@index([tournamentId, status])
-  @@index([refereeId, status])
   @@index([isVerified])
   @@map("matches")
 }
@@ -319,7 +315,7 @@ model Notification {
 model AuditLog {
   id           String   @id @default(uuid())
   actorId      String?  @map("actor_id")
-  action       String   // GAME_CREATE, TOURNAMENT_DELETE, USER_BAN, SCORE_OVERRIDE, REFEREE_VERIFIED, DISPUTE_RESOLVED, CHECKIN_UPDATE
+  action       String   // GAME_CREATE, TOURNAMENT_DELETE, USER_BAN, SCORE_OVERRIDE, SCORE_VERIFIED, DISPUTE_RESOLVED, CHECKIN_UPDATE
   targetEntity String   @map("target_entity") // GAME | TOURNAMENT | USER | MATCH | SCORE | DISPUTE
   targetId     String?  @map("target_id")
   ipAddress    String?  @map("ip_address")

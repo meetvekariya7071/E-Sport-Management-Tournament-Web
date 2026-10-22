@@ -155,7 +155,7 @@ export const broadcastDisputeEvent = (
 };
 
 /**
- * Broadcasts match verification by referee.
+ * Broadcasts match verification by tournament official.
  */
 export const broadcastMatchVerification = (
   tournamentId: string,

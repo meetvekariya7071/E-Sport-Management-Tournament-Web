@@ -115,10 +115,10 @@ export class DisputeService {
       matchId
     });
 
-    // 3. Notify Organizer and Referee
+    // 3. Notify Organizer
     const staffIds: string[] = [];
     if (match.tournament.organizerId) staffIds.push(match.tournament.organizerId);
-    if (match.refereeId) staffIds.push(match.refereeId);
+    
 
     await NotificationService.notifyMany(staffIds, {
       title: 'New Match Dispute Raised',
@@ -205,11 +205,7 @@ export class DisputeService {
 
     if (role === Roles.ORGANIZER) {
       where.tournament = { organizerId: userId };
-    } else if (role === Roles.REFEREE) {
-      where.OR = [
-        { match: { refereeId: userId } },
-        { tournament: { organizerId: userId } }
-      ];
+    
     } else if (role === Roles.PLAYER) {
       where.claimantId = userId;
     }
@@ -294,12 +290,12 @@ export class DisputeService {
       throw new Error(`Dispute ticket '${disputeId}' not found.`);
     }
 
-    // RBAC validation: Referee of match, Organizer of tournament, or Admin
-    const isReferee = dispute.match.refereeId === resolverId;
+    // RBAC validation: Organizer of tournament or Admin
+    
     const isOrganizer = dispute.tournament.organizerId === resolverId;
     const isAdmin = resolverRole === Roles.ADMIN;
 
-    if (!isReferee && !isOrganizer && !isAdmin) {
+    if (!isOrganizer && !isAdmin) {
       throw new Error('Unauthorized: You do not have permissions to resolve disputes for this tournament.');
     }
 

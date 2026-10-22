@@ -90,7 +90,7 @@ export const RaiseDisputeModal: React.FC<RaiseDisputeModalProps> = ({
                 RAISE MATCH DISPUTE
               </h3>
               <p className="text-[11px] text-slate-400 font-mono">
-                Submit violation ticket to referees & organizers
+                Submit violation ticket to tournament staff & organizers
               </p>
             </div>
           </div>
@@ -113,7 +113,7 @@ export const RaiseDisputeModal: React.FC<RaiseDisputeModalProps> = ({
               Dispute Ticket Submitted
             </h4>
             <p className="text-xs text-slate-400">
-              Match status flagged as disputed. Referees and tournament staff have been notified for review.
+              Match status flagged as disputed. Tournament organizers and staff have been notified for review.
             </p>
           </div>
         ) : (

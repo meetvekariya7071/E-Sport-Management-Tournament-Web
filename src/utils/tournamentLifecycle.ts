@@ -13,14 +13,14 @@ export interface TournamentLifecycleDates {
  * - FUTURE / UPCOMING: now < registrationStartDate (Registration has not opened yet).
  * - REGISTRATION_OPEN: now >= registrationStartDate && now <= registrationEndDate (Players/teams can register).
  * - LIVE / IN_PROGRESS: now > registrationEndDate && (endDate ? now <= endDate : true) (Registration is closed; matches are actively running).
- * - PAST / COMPLETED: now > endDate (or explicitly marked as COMPLETED by organizer/referee).
+ * - PAST / COMPLETED: now > endDate (or explicitly marked as COMPLETED by organizer).
  */
 export function getTournamentLifecycleStatus(
   tournament: TournamentLifecycleDates,
   referenceDate: Date = new Date()
 ): TournamentLifecycle {
   // If explicitly marked as completed or cancelled
-  if (tournament.status === 'COMPLETED') {
+  if (tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED') {
     return 'PAST';
   }
 
@@ -35,8 +35,12 @@ export function getTournamentLifecycleStatus(
     return 'PAST';
   }
 
-  // FUTURE / UPCOMING: now < registrationStartDate
-  if (!isNaN(regStart) && now < regStart) {
+  // FUTURE / UPCOMING: explicit UPCOMING status or now < registrationStartDate or now < start (before kickoff)
+  if (
+    tournament.status === 'UPCOMING' ||
+    (!isNaN(regStart) && now < regStart) ||
+    (!isNaN(start) && now < start && tournament.status !== 'IN_PROGRESS')
+  ) {
     return 'FUTURE';
   }
 
@@ -45,8 +49,12 @@ export function getTournamentLifecycleStatus(
     return 'REGISTRATION_OPEN';
   }
 
-  // LIVE / IN_PROGRESS: now > registrationEndDate && (endDate ? now <= endDate : true)
-  if (!isNaN(regEnd) && now > regEnd && (end === null || now <= end)) {
+  // LIVE / IN_PROGRESS: explicit IN_PROGRESS status or actively within kickoff and end window
+  if (
+    tournament.status === 'IN_PROGRESS' ||
+    tournament.status === 'LIVE' ||
+    (!isNaN(start) && now >= start && (end === null || now <= end))
+  ) {
     return 'LIVE';
   }
 

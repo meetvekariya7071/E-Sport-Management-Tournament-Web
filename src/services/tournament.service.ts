@@ -254,7 +254,7 @@ export class TournamentService {
             matches: {
               orderBy: { matchNumber: 'asc' },
               include: {
-                referee: { select: { id: true, username: true } },
+                
                 results: {
                   include: {
                     participant: {
@@ -348,7 +348,7 @@ export class TournamentService {
             matchId: m.id,
             matchNumber: m.matchNumber,
             status: m.status,
-            referee: m.referee,
+            
             scheduledAt: m.scheduledAt,
             completedAt: m.completedAt,
             results: m.results.map((res) => ({
@@ -729,7 +729,7 @@ export class TournamentService {
             matches: {
               orderBy: { matchNumber: 'asc' },
               include: {
-                referee: { select: { id: true, username: true } },
+                
                 results: {
                   include: {
                     participant: {
@@ -1278,6 +1278,8 @@ export class TournamentService {
         status: reg.tournament.status,
         startDate: reg.tournament.startDate,
         endDate: reg.tournament.endDate,
+        registrationStartDate: reg.tournament.registrationStartDate,
+        registrationEndDate: reg.tournament.registrationEndDate,
         prizePool: reg.tournament.prizePool,
         structure: reg.tournament.structure,
         currentCount: reg.tournament.currentCount,

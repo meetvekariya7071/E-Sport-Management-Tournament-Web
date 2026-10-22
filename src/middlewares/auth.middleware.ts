@@ -103,7 +103,6 @@ export const authenticate = async (
 /**
  * Role-Based Access Control Guard:
  * Strictly matches user role against allowed roles list.
- * Note: REFEREE is included and stubbed for future expansion.
  */
 export const authorizeRoles = (allowedRoles: Role[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {

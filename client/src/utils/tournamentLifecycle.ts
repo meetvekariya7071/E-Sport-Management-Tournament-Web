@@ -13,7 +13,7 @@ export interface TournamentLifecycleDates {
  * - FUTURE / UPCOMING: now < registrationStartDate (Registration has not opened yet).
  * - REGISTRATION_OPEN: now >= registrationStartDate && now <= registrationEndDate (Players/teams can register).
  * - LIVE / IN_PROGRESS: now > registrationEndDate && (endDate ? now <= endDate : true) (Registration is closed; matches are actively running).
- * - PAST / COMPLETED: now > endDate (or explicitly marked as COMPLETED by organizer/referee).
+ * - PAST / COMPLETED: now > endDate (or explicitly marked as COMPLETED by organizer).
  */
 export function getTournamentLifecycleStatus(
   tournament: TournamentLifecycleDates,
@@ -34,31 +34,35 @@ export function getTournamentLifecycleStatus(
   const start = new Date(tournament.startDate).getTime();
   const end = tournament.endDate ? new Date(tournament.endDate).getTime() : null;
 
-  // PAST / COMPLETED: now > endDate
+  // PAST / COMPLETED: now > endDate or explicit COMPLETED/CANCELLED
+  if (tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED') {
+    return 'PAST';
+  }
+
   if (end !== null && !isNaN(end) && now > end) {
     return 'PAST';
   }
 
-  // If no registration dates exist on legacy tournaments, fallback to status or start date
-  if (isNaN(regStart) || isNaN(regEnd)) {
-    if (tournament.status === 'REGISTRATION_OPEN') return 'REGISTRATION_OPEN';
-    if (tournament.status === 'IN_PROGRESS') return 'LIVE';
-    if (!isNaN(start) && now < start) return 'FUTURE';
-    return 'LIVE';
-  }
-
-  // FUTURE / UPCOMING: now < registrationStartDate
-  if (now < regStart) {
+  // FUTURE / UPCOMING: explicit UPCOMING status or now < registrationStartDate or now < start (before kickoff)
+  if (
+    tournament.status === 'UPCOMING' ||
+    (!isNaN(regStart) && now < regStart) ||
+    (!isNaN(start) && now < start && tournament.status !== 'IN_PROGRESS')
+  ) {
     return 'FUTURE';
   }
 
   // REGISTRATION_OPEN: now >= registrationStartDate && now <= registrationEndDate
-  if (now >= regStart && now <= regEnd) {
+  if (!isNaN(regStart) && !isNaN(regEnd) && now >= regStart && now <= regEnd) {
     return 'REGISTRATION_OPEN';
   }
 
-  // LIVE / IN_PROGRESS: now > registrationEndDate && (endDate ? now <= endDate : true)
-  if (now > regEnd && (end === null || now <= end)) {
+  // LIVE / IN_PROGRESS: explicit IN_PROGRESS status or actively within kickoff and end window
+  if (
+    tournament.status === 'IN_PROGRESS' ||
+    tournament.status === 'LIVE' ||
+    (!isNaN(start) && now >= start && (end === null || now <= end))
+  ) {
     return 'LIVE';
   }
 

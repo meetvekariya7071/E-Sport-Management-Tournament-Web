@@ -38,10 +38,10 @@ export class AdminService {
   }
 
   /**
-   * Generic paginated database table retrieval for Players, Organizers, Referees, Games, Tournaments
+   * Generic paginated database table retrieval for Players, Organizers, Games, Tournaments
    */
   static async getTableData(
-    table: 'players' | 'organizers' | 'referees' | 'games' | 'tournaments',
+    table: 'players' | 'organizers' | 'games' | 'tournaments',
     options: PaginationOptions
   ) {
     const page = Math.max(Number(options.page) || 1, 1);
@@ -50,13 +50,13 @@ export class AdminService {
     const search = options.search?.trim();
     const sortOrder = options.sortOrder === 'asc' ? 'asc' : 'desc';
 
-    if (table === 'players' || table === 'organizers' || table === 'referees') {
+    if (table === 'players' || table === 'organizers') {
       const targetRole =
         table === 'players'
           ? Roles.PLAYER
           : table === 'organizers'
           ? Roles.ORGANIZER
-          : Roles.REFEREE;
+          : Roles.PLAYER;
 
       const where: any = {
         role: targetRole,
@@ -95,8 +95,7 @@ export class AdminService {
             _count: {
               select: {
                 participations: true,
-                organizedTournaments: true,
-                adjudicatedMatches: true
+                organizedTournaments: true
               }
             }
           }
@@ -114,7 +113,6 @@ export class AdminService {
           createdAt: u.createdAt,
           gamesPlayed: u._count.participations,
           tournamentsManaged: u._count.organizedTournaments,
-          matchesAdjudicated: u._count.adjudicatedMatches
         })),
         pagination: {
           page,
@@ -299,7 +297,7 @@ export class AdminService {
             matches: {
               orderBy: { matchNumber: 'asc' },
               include: {
-                referee: { select: { id: true, username: true } },
+                verifiedBy: { select: { id: true, username: true } },
                 results: {
                   include: {
                     participant: {
@@ -379,7 +377,7 @@ export class AdminService {
           id: m.id,
           matchNumber: m.matchNumber,
           status: m.status,
-          referee: m.referee,
+          verifiedBy: m.verifiedBy,
           scheduledAt: m.scheduledAt,
           completedAt: m.completedAt,
           results: m.results.map((res) => ({

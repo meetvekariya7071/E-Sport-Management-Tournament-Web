@@ -517,9 +517,7 @@ export class AuthService {
       'admin@esports.com',
       'organizer@esports.com',
       'player1@esports.com',
-      'player2@esports.com',
-      'referee@esports.com',
-      'ref1@esports.com'
+      'player2@esports.com'
     ];
     const isDemoUser = demoEmails.includes(user.email.toLowerCase());
     const isEmailVerified = isDemoUser ? true : user.isEmailVerified;
@@ -810,7 +808,7 @@ export class AuthService {
     // Validate password
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new Error('UNAUTHORIZED: Invalid password. Account deletion requires correct password authentication.');
+      throw new Error('BAD_REQUEST: Invalid current password. Please try again.');
     }
 
     // Check for active tournament involvements if Organizer
@@ -820,11 +818,6 @@ export class AuthService {
 
     // Relational Integrity Safe-Handling in a Prisma Transaction
     await prisma.$transaction(async (tx) => {
-      // 1. Disconnect referee foreign keys on matches
-      await tx.match.updateMany({
-        where: { refereeId: userId },
-        data: { refereeId: null }
-      });
       await tx.match.updateMany({
         where: { verifiedById: userId },
         data: { verifiedById: null }

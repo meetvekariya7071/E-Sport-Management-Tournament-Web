@@ -1,6 +1,6 @@
 # 🏆 E-Sports Tournament Management System (ETMS)
 
-A production-ready, full-stack E-Sports Tournament Management Platform engineered for organizing competitive gaming events across diverse tournament formats (**SOLO**, **DUO**, **SQUAD**). Features real-time bracket orchestration, live leaderboards, role-based access control (RBAC), match dispute resolution, referee score verification, and live telemetry health monitoring.
+A production-ready, full-stack E-Sports Tournament Management Platform engineered for organizing competitive gaming events across diverse tournament formats (**SOLO**, **DUO**, **SQUAD**). Features real-time bracket orchestration, live leaderboards, role-based access control (RBAC), match dispute resolution, official score verification, and live telemetry health monitoring.
 
 ---
 
@@ -11,7 +11,7 @@ A production-ready, full-stack E-Sports Tournament Management Platform engineere
 - **Tournament Formats**:
   - **SOLO Battle Royale**: Multi-round aggregate scoring (Placement Points + Kill Points) with strictly zero team instantiation.
   - **DUO Knockout**: Paired team rosters with unique invite codes and partner join links.
-  - **SQUAD Elimination**: Bracket generation with Quarterfinals, Semifinals, and Finals, official referee match verification, and dispute resolution workflows.
+  - **SQUAD Elimination**: Bracket generation with Quarterfinals, Semifinals, and Finals, official match score verification, and dispute resolution workflows.
 - **Zero-Latency Telemetry**: Live system health endpoint (`GET /api/health`), database ping latency measurement, active WebSocket connections tracking, and in-memory cache monitoring.
 - **Fault-Tolerant UX**: Centralized API error structure and global React Error Boundary fallback screen with gaming-themed HUD.
 
@@ -121,7 +121,6 @@ The database seeder (`prisma/seed.ts`) automatically populates test accounts acr
 | **SUPER ADMIN** | `admin@esports.com` | `Admin@12345` | `ApexAdmin` | Global authority: user moderation, game catalog CRUD, system telemetry, dispute oversight. |
 | **ORGANIZER 1** | `org1@esports.com` | `Password@123` | `NexusHost` | Create & manage tournaments, seed brackets, publish matches, disqualify participants. |
 | **ORGANIZER 2** | `org2@esports.com` | `Password@123` | `VortexOps` | Host events, manage tournament sub-databases, export participant CSVs. |
-| **REFEREE** | `ref1@esports.com` | `Password@123` | `JudgeDredd` | Match assignment portal, scorecard verification, player check-in verification, dispute resolution. |
 | **PLAYER 1-20** | `player1@esports.com` through `player20@esports.com` | `Password@123` | `ShadowViper`, `NovaBlast`, `Krypton99`, `ValkyrieX`, `PhantomStrike`, `BlazeFury`, `FrostByte`, etc. | Solo registration, Duo/Squad team formation, match disputes, live score tracking. |
 
 ---
@@ -144,7 +143,7 @@ The database seeder (`prisma/seed.ts`) automatically populates test accounts acr
 - **Valorant Masters Invitational (SQUAD Elimination)**:
   - Format: `SQUAD`, Single Elimination bracket.
   - 4 full 4-player rosters: *Sentinels Prime*, *Fnatic Reborn*, *Paper Rex Elite*, *LOUD Velocity*.
-  - Bracket matches (Semifinals & Finals) with live round scores and official referee verification by `ref1@esports.com`.
+  - Bracket matches (Semifinals & Finals) with live round scores and match verification.
 
 ---
 
@@ -255,7 +254,7 @@ docker compose down
 
 ## 🧪 Automated Testing Suite
 
-Run all test suites covering Authentication, Role-Based Access Control, Tournament Isolation, and Referee Dispute Resolution:
+Run all test suites covering Authentication, Role-Based Access Control, and Tournament Isolation:
 
 ```bash
 npm run test
@@ -263,9 +262,8 @@ npm run test
 
 ### Test Coverage Highlights:
 - **`tests/auth.test.ts`**: Password hashing, JWT generation, login rate limiting, role assignments.
-- **`tests/rbac.test.ts`**: Admin, Organizer, Player, and Referee permission checks, user ban enforcement.
+- **`tests/rbac.test.ts`**: Admin, Organizer, and Player permission checks, user ban enforcement.
 - **`tests/tournaments.test.ts`**: SOLO vs DUO/SQUAD isolation, team invite codes, roster limit enforcement.
-- **`tests/referee-disputes.test.ts`**: Referee scorecard verification, player disputes ticketing, resolution workflow.
 
 ---
 
@@ -275,20 +273,20 @@ npm run test
 4th_Pro/
 ├── client/                     # Vite + React 18 Frontend
 │   ├── src/
-│   │   ├── api/                # Axios API services (auth, tournaments, referee, admin)
+│   │   ├── services/           # Axios API services (auth, tournaments, admin, dispute)
 │   │   ├── components/         # Navbar, ErrorBoundary, ProtectedRoute, Status Cards
 │   │   ├── context/            # AuthContext & SocketContext
-│   │   ├── pages/              # Admin, Organizer, Player, Referee, Tournament pages
+│   │   ├── pages/              # Admin, Organizer, Player, Tournament pages
 │   │   ├── types/              # Frontend TypeScript interfaces
 │   │   └── App.tsx             # Route definitions & guards
 │   ├── Dockerfile              # Multi-stage Nginx build
 │   └── nginx.conf              # Nginx SPA fallback & API proxy
 ├── prisma/
 │   ├── schema.prisma           # Prisma Schema (SQLite & PostgreSQL compatible)
-│   └── seed.ts                 # Full executable seeder (20 players, 4 roles, 3 formats)
+│   └── seed.ts                 # Full executable seeder (20 players, 3 roles, 3 formats)
 ├── src/
 │   ├── config/                 # DB singleton, environment validation
-│   ├── controllers/            # Route controllers (Auth, Tournaments, Referee, Admin)
+│   ├── controllers/            # Route controllers (Auth, Tournaments, Dispute, Admin)
 │   ├── middlewares/            # Auth, RBAC, Rate-limit, Global Error Handler
 │   ├── routes/                 # Express REST route definitions
 │   ├── services/               # Core business logic & CacheService

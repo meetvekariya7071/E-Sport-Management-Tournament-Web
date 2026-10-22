@@ -473,7 +473,7 @@ export const TournamentDetailsPage: React.FC = () => {
               <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
                 <span className="text-slate-400 font-mono block text-[10px] uppercase">Platform & Anti-Cheat</span>
                 <span className="font-semibold text-white">
-                  {tournament.game?.platform || 'PC'} • Standard Server Anti-Cheat & Referee Adjudication
+                  {tournament.game?.platform || 'PC'} • Standard Server Anti-Cheat & Fair-Play Match Dispute Engine
                 </span>
               </div>
 

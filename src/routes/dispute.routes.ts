@@ -11,10 +11,10 @@ router.use(authenticate);
 // Get disputes for current user (player sees theirs, staff sees assigned)
 router.get('/', DisputeController.getUserDisputes);
 
-// Resolve dispute (Referee, Organizer, Admin)
+// Resolve dispute (Organizer, Admin)
 router.patch(
   '/:disputeId/resolve',
-  authorizeRoles([Roles.REFEREE, Roles.ORGANIZER, Roles.ADMIN]),
+  authorizeRoles([Roles.ORGANIZER, Roles.ADMIN]),
   DisputeController.resolveDispute
 );
 

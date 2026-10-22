@@ -141,7 +141,7 @@ export const WalkoverModal: React.FC<WalkoverModalProps> = ({
               <option value="Player/Team disqualified for tournament rule infraction.">
                 Rule Infraction / Disqualification
               </option>
-              <option value="Technical disconnection / hardware forfeit confirmed by referee.">
+              <option value="Technical disconnection / hardware forfeit confirmed by tournament organizer.">
                 Hardware / Connection Forfeit
               </option>
               <option value="Unfilled bracket slot auto-bye.">
@@ -156,7 +156,7 @@ export const WalkoverModal: React.FC<WalkoverModalProps> = ({
             </label>
             <input
               type="text"
-              placeholder="Additional referee or organizer remarks..."
+              placeholder="Additional organizer remarks..."
               value={customReason}
               onChange={(e) => setCustomReason(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-amber-500"

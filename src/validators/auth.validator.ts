@@ -22,7 +22,7 @@ export const registerUserSchema = z.object({
     .min(6, 'Password must be at least 6 characters')
     .max(100, 'Password cannot exceed 100 characters'),
   role: z
-    .enum([Roles.ADMIN, Roles.ORGANIZER, Roles.PLAYER, Roles.REFEREE])
+    .enum([Roles.ADMIN, Roles.ORGANIZER, Roles.PLAYER])
     .optional()
     .default(Roles.PLAYER)
 });

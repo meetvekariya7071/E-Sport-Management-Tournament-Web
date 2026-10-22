@@ -17,9 +17,7 @@ import { TournamentDetailsPage } from './pages/TournamentDetailsPage';
 import { TournamentCatalogPage } from './pages/TournamentCatalogPage';
 import { LiveTournamentPage } from './pages/LiveTournamentPage';
 import { OrganizerScoringConsole } from './pages/OrganizerScoringConsole';
-import { RefereeDashboard } from './pages/RefereeDashboard';
 import { DisputesReviewPage } from './pages/DisputesReviewPage';
-import { MatchScoreVerificationPage } from './pages/MatchScoreVerificationPage';
 import { GamesCatalogPage } from './pages/GamesCatalogPage';
 import { GameDetailPage } from './pages/GameDetailPage';
 import { EmailVerificationNoticePage } from './pages/EmailVerificationNoticePage';
@@ -35,7 +33,6 @@ const RoleDashboardRedirect: React.FC = () => {
   const { role } = useAuth();
   if (role === 'ADMIN') return <Navigate to="/admin" replace />;
   if (role === 'ORGANIZER') return <Navigate to="/organizer" replace />;
-  if (role === 'REFEREE') return <Navigate to="/referee/portal" replace />;
   return <Navigate to="/player" replace />;
 };
 
@@ -72,12 +69,11 @@ export const App: React.FC = () => {
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute allowedRoles={['ADMIN', 'ORGANIZER', 'REFEREE', 'PLAYER']}>
+              <ProtectedRoute allowedRoles={['ADMIN', 'ORGANIZER', 'PLAYER']}>
                 <RoleDashboardRedirect />
               </ProtectedRoute>
             }
           />
-          <Route path="/dashboard/referee" element={<Navigate to="/referee/portal" replace />} />
 
           {/* Admin Routes - Strictly ADMIN */}
           <Route
@@ -108,40 +104,7 @@ export const App: React.FC = () => {
           />
           <Route path="/admin/audit-logs" element={<Navigate to="/admin" replace />} />
 
-          {/* Referee Routes - REFEREE / ORGANIZER / ADMIN */}
-          <Route path="/referee">
-            <Route index element={<Navigate to="/referee/portal" replace />} />
-            <Route
-              path="portal"
-              element={
-                <ProtectedRoute allowedRoles={['REFEREE', 'ORGANIZER', 'ADMIN']}>
-                  <RefereeDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="dashboard"
-              element={<Navigate to="/referee/portal" replace />}
-            />
-            <Route
-              path="disputes"
-              element={
-                <ProtectedRoute allowedRoles={['REFEREE', 'ORGANIZER', 'ADMIN']}>
-                  <DisputesReviewPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="matches/:id/verify"
-              element={
-                <ProtectedRoute allowedRoles={['REFEREE', 'ORGANIZER', 'ADMIN']}>
-                  <MatchScoreVerificationPage />
-                </ProtectedRoute>
-              }
-            />
-          </Route>
-
-          {/* Organizer Routes - Strictly ORGANIZER / ADMIN */}
+        {/* Organizer Routes - Strictly ORGANIZER / ADMIN */}
           <Route
             path="/organizer"
             element={
@@ -262,7 +225,7 @@ export const App: React.FC = () => {
           <Route
             path="/settings"
             element={
-              <ProtectedRoute allowedRoles={['ADMIN', 'ORGANIZER', 'REFEREE', 'PLAYER']}>
+              <ProtectedRoute allowedRoles={['ADMIN', 'ORGANIZER', 'PLAYER']}>
                 <ProfileSettingsPage />
               </ProtectedRoute>
             }
@@ -270,7 +233,7 @@ export const App: React.FC = () => {
           <Route
             path="/profile"
             element={
-              <ProtectedRoute allowedRoles={['ADMIN', 'ORGANIZER', 'REFEREE', 'PLAYER']}>
+              <ProtectedRoute allowedRoles={['ADMIN', 'ORGANIZER', 'PLAYER']}>
                 <ProfileSettingsPage />
               </ProtectedRoute>
             }

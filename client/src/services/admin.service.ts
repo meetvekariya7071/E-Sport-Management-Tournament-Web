@@ -52,7 +52,6 @@ export interface TournamentInspection {
       id: string;
       matchNumber: number;
       status: string;
-      referee?: { id: string; username: string } | null;
       scheduledAt?: string | null;
       completedAt?: string | null;
       results: Array<{
@@ -74,7 +73,7 @@ export const adminService = {
   },
 
   async getTableData<T = any>(
-    table: 'players' | 'organizers' | 'referees' | 'games' | 'tournaments',
+    table: 'players' | 'organizers' | 'games' | 'tournaments',
     params?: {
       page?: number;
       limit?: number;

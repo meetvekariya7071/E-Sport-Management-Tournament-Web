@@ -43,7 +43,7 @@ api.interceptors.response.use(
     }
 
     // Token Expired / Invalid (401 unauthorized)
-    if (status === 401) {
+    if (status === 401 && !error.config?.url?.includes('/login') && !error.config?.url?.includes('/account')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {

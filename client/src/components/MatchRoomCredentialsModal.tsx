@@ -33,7 +33,7 @@ export const MatchRoomCredentialsModal: React.FC<MatchRoomCredentialsModalProps>
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const canEdit = isStaff || user?.role === 'ADMIN' || user?.role === 'ORGANIZER' || user?.role === 'REFEREE';
+  const canEdit = isStaff || user?.role === 'ADMIN' || user?.role === 'ORGANIZER';
 
   useEffect(() => {
     if (!isOpen) return;

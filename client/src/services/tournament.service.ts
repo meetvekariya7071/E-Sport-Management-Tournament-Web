@@ -49,7 +49,6 @@ export interface TournamentDatabaseView {
         matchId: string;
         matchNumber: number;
         status: string;
-        referee?: { id: string; username: string } | null;
         scheduledAt?: string | null;
         completedAt?: string | null;
         results: Array<{
@@ -396,7 +395,7 @@ export const tournamentService = {
     return res.data;
   },
 
-  // Set Custom Match Room Credentials (Organizer, Admin, Referee)
+  // Set Custom Match Room Credentials (Organizer, Admin)
   async setMatchCredentials(
     tournamentId: string,
     matchId: string,
@@ -406,7 +405,7 @@ export const tournamentService = {
     return res.data;
   },
 
-  // Get Custom Match Room Credentials (Checked-in Participants, Referee, Organizer, Admin)
+  // Get Custom Match Room Credentials (Checked-in Participants, Organizer, Admin)
   async getMatchCredentials(tournamentId: string, matchId: string) {
     const res = await api.get(`/tournaments/${tournamentId}/matches/${matchId}/credentials`);
     return res.data;

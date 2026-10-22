@@ -22,7 +22,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleMobileSidebar, isMobileS
   const getDashboardPath = () => {
     if (role === 'ADMIN') return '/admin';
     if (role === 'ORGANIZER') return '/organizer';
-    if (role === 'REFEREE') return '/referee/portal';
     return '/player';
   };
 
@@ -32,8 +31,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleMobileSidebar, isMobileS
         return 'bg-red-500/10 text-red-400 border-red-500/30';
       case 'ORGANIZER':
         return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
-      case 'REFEREE':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
       case 'PLAYER':
         return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
       default:
@@ -99,9 +96,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleMobileSidebar, isMobileS
             Games
           </Link>
 
-          {isAuthenticated && user && (role === 'REFEREE' || role === 'ORGANIZER' || role === 'ADMIN') && (
+          {isAuthenticated && user && (role === 'ORGANIZER' || role === 'ADMIN') && (
             <Link
-              to={role === 'REFEREE' ? '/referee/disputes' : '/organizer/disputes'}
+              to="/organizer/disputes"
               className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                 location.pathname.includes('/disputes')
                   ? 'text-cyan-400 bg-slate-800/60'
@@ -118,7 +115,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleMobileSidebar, isMobileS
               className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                 location.pathname.startsWith('/admin') ||
                 location.pathname.startsWith('/organizer') ||
-                location.pathname.startsWith('/referee') ||
                 location.pathname.startsWith('/player')
                   ? 'text-cyan-400 bg-slate-800/60'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/40'
