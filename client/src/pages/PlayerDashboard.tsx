@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { tournamentService } from '../services/tournament.service';
 import { PlayerRegistration, Tournament } from '../types';
+import { getTournamentLifecycleStatus } from '../utils/tournamentLifecycle';
 import { RegistrationModal } from '../components/RegistrationModal';
 import { RaiseDisputeModal } from '../components/RaiseDisputeModal';
 import { RosterSubstitutionModal } from '../components/RosterSubstitutionModal';
@@ -58,6 +59,26 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ defaultTab }) 
   };
 
   const [activeTab, setActiveTab] = useState<'MY_TOURNAMENTS' | 'BROWSE' | 'HISTORY'>(getTabFromRoute);
+  const [subFilter, setSubFilter] = useState<'ALL' | 'ACTIVE' | 'UPCOMING' | 'PAST'>('ALL');
+
+  const activeRegistrations = useMemo(
+    () => registrations.filter((r) => getTournamentLifecycleStatus(r.tournament) === 'LIVE'),
+    [registrations]
+  );
+
+  const upcomingRegistrations = useMemo(
+    () =>
+      registrations.filter((r) => {
+        const status = getTournamentLifecycleStatus(r.tournament);
+        return status === 'FUTURE' || status === 'REGISTRATION_OPEN';
+      }),
+    [registrations]
+  );
+
+  const pastRegistrations = useMemo(
+    () => registrations.filter((r) => getTournamentLifecycleStatus(r.tournament) === 'PAST'),
+    [registrations]
+  );
 
   useEffect(() => {
     if (defaultTab) {
@@ -116,6 +137,212 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ defaultTab }) 
     } catch (err: any) {
       alert(err.response?.data?.error || err.message || 'Withdrawal failed.');
     }
+  };
+
+  const renderRegistrationCard = (reg: PlayerRegistration) => {
+    const t = reg.tournament;
+    const isSolo = t.format === 'SOLO';
+    const canWithdraw = t.status === 'REGISTRATION_OPEN';
+
+    return (
+      <div
+        key={reg.registrationId}
+        className="gaming-card rounded-2xl border border-slate-800 hover:border-cyan-500/40 p-6 space-y-6 transition-all"
+      >
+        {/* Top Row: Tournament Title & Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase font-bold">
+                {t.format}
+              </span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase">
+                {t.status.replace('_', ' ')}
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">
+                IGN: <strong className="text-white">{reg.inGameName || user?.username}</strong>
+              </span>
+            </div>
+
+            <h3 className="text-xl font-heading font-extrabold text-white">
+              {t.title}
+            </h3>
+
+            <div className="flex items-center space-x-3 text-xs text-slate-400">
+              <span className="flex items-center gap-1 text-slate-300 font-semibold">
+                <Gamepad2 className="w-3.5 h-3.5 text-cyan-400" />
+                {t.game?.title}
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1 font-mono">
+                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                {new Date(t.startDate).toLocaleDateString()}
+              </span>
+              {t.prizePool && (
+                <>
+                  <span>•</span>
+                  <span className="text-emerald-400 font-mono font-bold flex items-center gap-1">
+                    <Trophy className="w-3 h-3" /> {t.prizePool}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3 shrink-0">
+            <Link
+              to={`/tournaments/${t.id}`}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-heading font-semibold text-white border border-slate-700"
+            >
+              View Details &rarr;
+            </Link>
+
+            <button
+              onClick={() => setDisputeTournament(t)}
+              className="px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-heading font-bold flex items-center space-x-1.5 transition-colors"
+              title="Report rule violation or contest match score"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Raise Dispute</span>
+            </button>
+
+            {canWithdraw && (
+              <button
+                onClick={() =>
+                  handleWithdraw(t.id, t.title, reg.team?.isCaptain || false)
+                }
+                className="px-3.5 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-heading font-bold flex items-center space-x-1.5 transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>
+                  {reg.team?.isCaptain ? 'Disband Team' : 'Leave Tournament'}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Middle: Team Roster Details or Solo Badge */}
+        {reg.team ? (
+          <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-2">
+                <Users className="w-4 h-4 text-cyan-400" />
+                <span className="font-heading font-bold text-white text-sm">
+                  {reg.team.name}
+                </span>
+                {reg.team.tag && (
+                  <span className="text-xs font-mono text-cyan-400">
+                    [{reg.team.tag}]
+                  </span>
+                )}
+                {reg.team.isCaptain && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold">
+                    CAPTAIN
+                  </span>
+                )}
+              </div>
+
+              {/* Invite Code Box for Teammates */}
+              {reg.team.inviteCode && (
+                <div className="flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">
+                    Invite Code:
+                  </span>
+                  <span className="font-mono font-bold text-cyan-400 text-xs tracking-wider">
+                    {reg.team.inviteCode}
+                  </span>
+                  <button
+                    onClick={() =>
+                      handleCopyInviteCode(reg.team!.inviteCode!, reg.registrationId)
+                    }
+                    className="p-1 text-slate-400 hover:text-white"
+                    title="Copy 6-Character Invite Code"
+                  >
+                    {copiedCodeId === reg.registrationId ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Roster Members */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">
+                  Roster Members ({reg.team.members.length}/
+                  {t.format === 'DUO' ? 2 : 4})
+                </span>
+                {reg.team.isCaptain && t.status !== 'COMPLETED' && (
+                  <button
+                    onClick={() =>
+                      setSubstituteTeam({
+                        tournamentId: t.id,
+                        tournamentTitle: t.title,
+                        teamId: reg.team!.id,
+                        teamName: reg.team!.name,
+                        members: reg.team!.members
+                      })
+                    }
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/60 text-[10px] font-bold font-mono transition"
+                    title="Replace an inactive player with a registered substitute without disbanding team"
+                  >
+                    <UserCheck className="w-3 h-3 text-cyan-400" />
+                    <span>Emergency Substitute</span>
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {reg.team.members.map((m) => (
+                  <div
+                    key={m.userId}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-mono text-slate-200 border border-slate-700/80 flex items-center space-x-2"
+                  >
+                    <span>{m.username}</span>
+                    {m.role === 'CAPTAIN' && (
+                      <span className="text-[9px] text-amber-400 font-bold">★ CPT</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center space-x-3 text-xs text-slate-400">
+            <Shield className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>
+              Solo Bracket Enrollment: Directly mapped to seed slot without team dependency.
+            </span>
+          </div>
+        )}
+
+        {/* Match Schedule / Bracket Notice */}
+        {t.rounds && t.rounds.length > 0 && (
+          <div className="pt-2 border-t border-slate-800 space-y-2">
+            <div className="flex items-center space-x-2 text-xs font-heading font-bold text-white">
+              <Swords className="w-4 h-4 text-cyan-400" />
+              <span>Active Match Rounds</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {t.rounds.map((r: any) => (
+                <div
+                  key={r.id}
+                  className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs"
+                >
+                  <span className="font-bold text-white block">{r.name}</span>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {r.matches?.length || 0} Scheduled Matches
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -238,212 +465,124 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ defaultTab }) 
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-6">
-              {registrations.map((reg) => {
-                const t = reg.tournament;
-                const isSolo = t.format === 'SOLO';
-                const canWithdraw = t.status === 'REGISTRATION_OPEN';
+            <div className="space-y-6">
+              {/* Category Filter Pills */}
+              <div className="flex flex-wrap items-center gap-2 pb-2">
+                <button
+                  onClick={() => setSubFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
+                    subFilter === 'ALL'
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow-cyan'
+                      : 'text-slate-400 hover:text-white bg-slate-800/60 border border-slate-700/60'
+                  }`}
+                >
+                  All ({registrations.length})
+                </button>
+                <button
+                  onClick={() => setSubFilter('ACTIVE')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all ${
+                    subFilter === 'ACTIVE'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'text-slate-400 hover:text-white bg-slate-800/60 border border-slate-700/60'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Active Tournaments ({activeRegistrations.length})
+                </button>
+                <button
+                  onClick={() => setSubFilter('UPCOMING')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all ${
+                    subFilter === 'UPCOMING'
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                      : 'text-slate-400 hover:text-white bg-slate-800/60 border border-slate-700/60'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                  Registered / Upcoming ({upcomingRegistrations.length})
+                </button>
+                <button
+                  onClick={() => setSubFilter('PAST')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all ${
+                    subFilter === 'PAST'
+                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                      : 'text-slate-400 hover:text-white bg-slate-800/60 border border-slate-700/60'
+                  }`}
+                >
+                  <Trophy className="w-3.5 h-3.5 text-purple-400" />
+                  Past Tournaments ({pastRegistrations.length})
+                </button>
+              </div>
 
-                return (
-                  <div
-                    key={reg.registrationId}
-                    className="gaming-card rounded-2xl border border-slate-800 hover:border-cyan-500/40 p-6 space-y-6 transition-all"
-                  >
-                    {/* Top Row: Tournament Title & Actions */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 uppercase font-bold">
-                            {t.format}
-                          </span>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase">
-                            {t.status.replace('_', ' ')}
-                          </span>
-                          <span className="text-[10px] font-mono text-slate-400">
-                            IGN: <strong className="text-white">{reg.inGameName || user?.username}</strong>
-                          </span>
-                        </div>
-
-                        <h3 className="text-xl font-heading font-extrabold text-white">
-                          {t.title}
-                        </h3>
-
-                        <div className="flex items-center space-x-3 text-xs text-slate-400">
-                          <span className="flex items-center gap-1 text-slate-300 font-semibold">
-                            <Gamepad2 className="w-3.5 h-3.5 text-cyan-400" />
-                            {t.game?.title}
-                          </span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1 font-mono">
-                            <Calendar className="w-3.5 h-3.5 text-slate-500" />
-                            {new Date(t.startDate).toLocaleDateString()}
-                          </span>
-                          {t.prizePool && (
-                            <>
-                              <span>•</span>
-                              <span className="text-emerald-400 font-mono font-bold flex items-center gap-1">
-                                <Trophy className="w-3 h-3" /> {t.prizePool}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center space-x-3 shrink-0">
-                        <Link
-                          to={`/tournaments/${t.id}`}
-                          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-heading font-semibold text-white border border-slate-700"
-                        >
-                          View Details &rarr;
-                        </Link>
-
-                        <button
-                          onClick={() => setDisputeTournament(t)}
-                          className="px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-heading font-bold flex items-center space-x-1.5 transition-colors"
-                          title="Report rule violation or contest match score"
-                        >
-                          <ShieldAlert className="w-3.5 h-3.5" />
-                          <span>Raise Dispute</span>
-                        </button>
-
-                        {canWithdraw && (
-                          <button
-                            onClick={() =>
-                              handleWithdraw(t.id, t.title, reg.team?.isCaptain || false)
-                            }
-                            className="px-3.5 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-heading font-bold flex items-center space-x-1.5 transition-colors"
-                          >
-                            <LogOut className="w-3.5 h-3.5" />
-                            <span>
-                              {reg.team?.isCaptain ? 'Disband Team' : 'Leave Tournament'}
-                            </span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Middle: Team Roster Details or Solo Badge */}
-                    {reg.team ? (
-                      <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center space-x-2">
-                            <Users className="w-4 h-4 text-cyan-400" />
-                            <span className="font-heading font-bold text-white text-sm">
-                              {reg.team.name}
-                            </span>
-                            {reg.team.tag && (
-                              <span className="text-xs font-mono text-cyan-400">
-                                [{reg.team.tag}]
-                              </span>
-                            )}
-                            {reg.team.isCaptain && (
-                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold">
-                                CAPTAIN
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Invite Code Box for Teammates */}
-                          {reg.team.inviteCode && (
-                            <div className="flex items-center space-x-2 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700">
-                              <span className="text-[10px] font-mono text-slate-400 uppercase">
-                                Invite Code:
-                              </span>
-                              <span className="font-mono font-bold text-cyan-400 text-xs tracking-wider">
-                                {reg.team.inviteCode}
-                              </span>
-                              <button
-                                onClick={() =>
-                                  handleCopyInviteCode(reg.team!.inviteCode!, reg.registrationId)
-                                }
-                                className="p-1 text-slate-400 hover:text-white"
-                                title="Copy 6-Character Invite Code"
-                              >
-                                {copiedCodeId === reg.registrationId ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Roster Members */}
-                        <div className="space-y-1.5 pt-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">
-                              Roster Members ({reg.team.members.length}/
-                              {t.format === 'DUO' ? 2 : 4})
-                            </span>
-                            {reg.team.isCaptain && t.status !== 'COMPLETED' && (
-                              <button
-                                onClick={() =>
-                                  setSubstituteTeam({
-                                    tournamentId: t.id,
-                                    tournamentTitle: t.title,
-                                    teamId: reg.team!.id,
-                                    teamName: reg.team!.name,
-                                    members: reg.team!.members
-                                  })
-                                }
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/60 text-[10px] font-bold font-mono transition"
-                                title="Replace an inactive player with a registered substitute without disbanding team"
-                              >
-                                <UserCheck className="w-3 h-3 text-cyan-400" />
-                                <span>Emergency Substitute</span>
-                              </button>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {reg.team.members.map((m) => (
-                              <div
-                                key={m.userId}
-                                className="px-3 py-1.5 rounded-lg bg-slate-800 text-xs font-mono text-slate-200 border border-slate-700/80 flex items-center space-x-2"
-                              >
-                                <span>{m.username}</span>
-                                {m.role === 'CAPTAIN' && (
-                                  <span className="text-[9px] text-amber-400 font-bold">★ CPT</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center space-x-3 text-xs text-slate-400">
-                        <Shield className="w-4 h-4 text-cyan-400 shrink-0" />
-                        <span>
-                          Solo Bracket Enrollment: Directly mapped to seed slot without team dependency.
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Match Schedule / Bracket Notice */}
-                    {t.rounds && t.rounds.length > 0 && (
-                      <div className="pt-2 border-t border-slate-800 space-y-2">
-                        <div className="flex items-center space-x-2 text-xs font-heading font-bold text-white">
-                          <Swords className="w-4 h-4 text-cyan-400" />
-                          <span>Active Match Rounds</span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                          {t.rounds.map((r: any) => (
-                            <div
-                              key={r.id}
-                              className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs"
-                            >
-                              <span className="font-bold text-white block">{r.name}</span>
-                              <span className="text-[10px] font-mono text-slate-400">
-                                {r.matches?.length || 0} Scheduled Matches
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+              {/* SECTION 1: ACTIVE TOURNAMENTS */}
+              {(subFilter === 'ALL' || subFilter === 'ACTIVE') && activeRegistrations.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2 border-b border-slate-800/80 pb-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <h2 className="text-sm font-heading font-extrabold text-white tracking-wider uppercase">
+                      Active Tournaments ({activeRegistrations.length})
+                    </h2>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      LIVE IN PROGRESS
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="grid grid-cols-1 gap-6">
+                    {activeRegistrations.map(renderRegistrationCard)}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 2: REGISTERED / UPCOMING */}
+              {(subFilter === 'ALL' || subFilter === 'UPCOMING') && upcomingRegistrations.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2 border-b border-slate-800/80 pb-2">
+                    <Calendar className="w-4 h-4 text-cyan-400" />
+                    <h2 className="text-sm font-heading font-extrabold text-white tracking-wider uppercase">
+                      Registered / Upcoming ({upcomingRegistrations.length})
+                    </h2>
+                    <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+                      CONFIRMED SEED
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-6">
+                    {upcomingRegistrations.map(renderRegistrationCard)}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 3: PAST TOURNAMENTS */}
+              {(subFilter === 'ALL' || subFilter === 'PAST') && pastRegistrations.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2 border-b border-slate-800/80 pb-2">
+                    <CheckCircle className="w-4 h-4 text-slate-400" />
+                    <h2 className="text-sm font-heading font-extrabold text-slate-300 tracking-wider uppercase">
+                      Past Tournaments ({pastRegistrations.length})
+                    </h2>
+                    <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                      CONCLUDED
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-6">
+                    {pastRegistrations.map(renderRegistrationCard)}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state for filtered view */}
+              {subFilter === 'ACTIVE' && activeRegistrations.length === 0 && (
+                <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 text-center text-slate-500 text-xs font-mono">
+                  No active tournaments in progress.
+                </div>
+              )}
+              {subFilter === 'UPCOMING' && upcomingRegistrations.length === 0 && (
+                <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 text-center text-slate-500 text-xs font-mono">
+                  No upcoming tournament registrations found.
+                </div>
+              )}
+              {subFilter === 'PAST' && pastRegistrations.length === 0 && (
+                <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 text-center text-slate-500 text-xs font-mono">
+                  No past tournaments found.
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -507,6 +646,27 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({ defaultTab }) 
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {/* TAB 3: PAST TOURNAMENTS & MATCH HISTORY */}
+      {activeTab === 'HISTORY' && (
+        <div className="space-y-6">
+          <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
+            <Trophy className="w-5 h-5 text-amber-400" />
+            <h2 className="text-lg font-heading font-bold text-white uppercase tracking-wider">
+              Past Tournaments & Match History ({pastRegistrations.length})
+            </h2>
+          </div>
+          {pastRegistrations.length === 0 ? (
+            <div className="gaming-card rounded-2xl border border-slate-800 p-12 text-center text-slate-500">
+              No concluded tournament records found for your account.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6">
+              {pastRegistrations.map(renderRegistrationCard)}
+            </div>
+          )}
         </div>
       )}
 

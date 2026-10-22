@@ -173,31 +173,31 @@ export const LoginPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => handleDemoFill('admin@esports.com', 'PASSWORD123!')}
+                onClick={() => handleDemoFill('admin@leagueforge.com', 'Password123!')}
                 className="py-1.5 px-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-medium"
               >
                 Super Admin
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoFill('organizer@esports.com', 'PASSWORD123!')}
+                onClick={() => handleDemoFill('organizer1@leagueforge.com', 'Password123!')}
                 className="py-1.5 px-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-medium"
               >
-                Organizer
+                Organizer 1
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoFill('player1@esports.com', 'PASSWORD123!')}
+                onClick={() => handleDemoFill('player1@leagueforge.com', 'Password123!')}
                 className="py-1.5 px-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium"
               >
-                Player 1 (Solo)
+                Player 1 (Gamer_01)
               </button>
               <button
                 type="button"
-                onClick={() => handleDemoFill('player2@esports.com', 'PASSWORD123!')}
+                onClick={() => handleDemoFill('organizer2@leagueforge.com', 'Password123!')}
                 className="py-1.5 px-2 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 font-medium"
               >
-                Player 2 (Partner)
+                Organizer 2
               </button>
             </div>
           </div>

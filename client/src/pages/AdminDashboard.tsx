@@ -478,7 +478,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ defaultTab = 'pl
                           {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}
                         </td>
                         <td className="py-3.5 px-4 font-mono text-cyan-400 font-semibold">
-                          {item.gamesPlayed ?? item.tournamentsManaged ?? 0}
+                          {activeTab === 'organizers'
+                            ? (item.tournamentsManaged ?? item.tournamentsCreated ?? 0)
+                            : (item.tournamentsJoined ?? item.gamesPlayed ?? 0)}
                         </td>
                         <td className="py-3.5 px-4">
                           {item.isBanned ? (

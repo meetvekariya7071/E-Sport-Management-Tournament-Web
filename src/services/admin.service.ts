@@ -112,7 +112,9 @@ export class AdminService {
           banReason: u.banReason,
           createdAt: u.createdAt,
           gamesPlayed: u._count.participations,
+          tournamentsJoined: u._count.participations,
           tournamentsManaged: u._count.organizedTournaments,
+          tournamentsCreated: u._count.organizedTournaments
         })),
         pagination: {
           page,
