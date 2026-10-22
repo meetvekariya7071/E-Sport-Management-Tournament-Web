@@ -31,7 +31,7 @@ export const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({ isOpen, 
 
   if (!isOpen) return null;
 
-  const isDeleteConfirmed = confirmWord.trim().toUpperCase() === 'DELETE';
+  const isDeleteConfirmed = confirmWord.trim() === 'DELETE';
   const canSubmit = isDeleteConfirmed && password.trim().length > 0 && !isLoading;
 
   const handleDelete = async (e: React.FormEvent) => {
