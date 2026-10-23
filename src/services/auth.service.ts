@@ -349,6 +349,7 @@ export class AuthService {
           role: updatedUser.role,
           bio: updatedUser.bio,
           isEmailVerified: true,
+          isVerified: true,
           createdAt: updatedUser.createdAt
         },
         token
@@ -534,25 +535,35 @@ export class AuthService {
     }
 
     if (!isEmailVerified) {
-      // Auto-generate fresh 6-digit verification code and dispatch to inbox
-      const otp = this.generateOtp();
-      const hashedOtp = this.hashToken(otp);
+      // Generate a fresh 6-digit numeric OTP (10-minute validity)
+      const otpCode = crypto.randomInt(100000, 1000000).toString();
+      const hashedOtp = this.hashToken(otpCode);
+      const expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
       await prisma.user.update({
         where: { id: user.id },
         data: {
           emailVerificationToken: hashedOtp,
-          emailVerificationExpires: new Date(Date.now() + 15 * 60 * 1000)
+          emailVerificationExpires: expires
         }
       });
 
-      emailService.sendVerificationEmail(user.email, user.username, otp).catch((err) =>
-        console.error('[AuthService.loginUser] Automatic OTP resend failed:', err)
-      );
+      // Update cooldown tracking
+      this.lastOtpSentMap.set(user.email.toLowerCase(), Date.now());
+
+      console.log(`\n======================================================`);
+      console.log(`[DEV ONLY] Unverified Login OTP for ${user.email} is: ${otpCode}`);
+      console.log(`======================================================\n`);
+
+      // Trigger sendOtpEmail using the configured Nodemailer transporter (mvekariya2006@gmail.com)
+      emailService
+        .sendOtpEmail(user.email, otpCode, user.username)
+        .catch((err) => console.error('[AuthService.loginUser] Automatic OTP dispatch failed:', err));
 
       const verificationError: any = new Error(
-        "Your email address has not been verified yet. Please enter the 6-digit confirmation code sent to your inbox to activate your account."
+        'Account not verified. A 6-digit verification code has been sent to your email.'
       );
+      verificationError.isVerified = false;
       verificationError.requiresVerification = true;
       verificationError.email = user.email;
       throw verificationError;
@@ -572,6 +583,7 @@ export class AuthService {
         role: user.role,
         bio: user.bio,
         isEmailVerified,
+        isVerified: isEmailVerified,
         createdAt: user.createdAt
       },
       token

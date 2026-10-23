@@ -10,6 +10,7 @@ export interface User {
   username: string;
   role: Role;
   isEmailVerified?: boolean;
+  isVerified?: boolean;
   isBanned: boolean;
   banReason?: string | null;
   bio?: string | null;

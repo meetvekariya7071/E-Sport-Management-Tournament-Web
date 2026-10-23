@@ -57,12 +57,13 @@ export class AuthController {
         data: result
       });
     } catch (error: any) {
-      if (error.requiresVerification) {
+      if (error.isVerified === false || error.requiresVerification) {
         res.status(403).json({
           success: false,
+          isVerified: false,
           requiresVerification: true,
           email: error.email,
-          message: error.message
+          message: error.message || 'Account not verified. A 6-digit verification code has been sent to your email.'
         });
         return;
       }

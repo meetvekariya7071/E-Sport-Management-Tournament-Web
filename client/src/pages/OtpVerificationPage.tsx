@@ -1,34 +1,45 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { ShieldCheck, Mail, ArrowRight, Loader2, AlertCircle, CheckCircle2, RotateCw, ArrowLeft, Pencil } from 'lucide-react';
 import { authService } from '../services/auth.service';
 import { useAuth } from '../context/AuthContext';
 
 export const OtpVerificationPage: React.FC = () => {
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const stateEmail = (location.state as any)?.email || '';
   const emailParam = searchParams.get('email') || '';
   const otpParam = searchParams.get('otp') || '';
 
-  const [email, setEmail] = useState<string>(emailParam);
+  const initialEmail = stateEmail || emailParam;
+  const [email, setEmail] = useState<string>(initialEmail);
   const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(
+    (location.state as any)?.toastMessage || null
+  );
   const [countdown, setCountdown] = useState<number>(60);
   const [isVerified, setIsVerified] = useState(false);
 
   // Email Typo Correction States
   const [isEditingEmail, setIsEditingEmail] = useState(false);
-  const [editedEmail, setEditedEmail] = useState(emailParam);
+  const [editedEmail, setEditedEmail] = useState(initialEmail);
   const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
 
   useEffect(() => {
-    if (emailParam) {
-      setEmail(emailParam);
-      setEditedEmail(emailParam);
+    const locEmail = (location.state as any)?.email;
+    const resolved = locEmail || emailParam;
+    if (resolved) {
+      setEmail(resolved);
+      setEditedEmail(resolved);
     }
-  }, [emailParam]);
+    const locToast = (location.state as any)?.toastMessage;
+    if (locToast) {
+      setSuccessToast(locToast);
+    }
+  }, [emailParam, location.state]);
 
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -146,9 +157,7 @@ export const OtpVerificationPage: React.FC = () => {
       login(res.data.token, res.data.user);
 
       setTimeout(() => {
-        if (res.data.user.role === 'ADMIN') navigate('/admin');
-        else if (res.data.user.role === 'ORGANIZER') navigate('/organizer');
-        else navigate('/player');
+        navigate('/dashboard');
       }, 1000);
     } catch (err: any) {
       setErrorMessage(

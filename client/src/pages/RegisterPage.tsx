@@ -31,7 +31,9 @@ export const RegisterPage: React.FC = () => {
         bio: bio || undefined
       });
 
-      navigate(`/verify-otp?email=${encodeURIComponent(email)}`);
+      navigate(`/verify-otp?email=${encodeURIComponent(email)}`, {
+        state: { email }
+      });
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || 'Registration failed.');
     } finally {

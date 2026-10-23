@@ -20,10 +20,13 @@ export const LoginPage: React.FC = () => {
   const isReset = query.get('reset');
 
 
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setToastMessage(null);
 
     try {
       const data = await authService.login({ emailOrUsername, password });
@@ -40,13 +43,22 @@ export const LoginPage: React.FC = () => {
       else if (data.user.role === 'ORGANIZER') navigate('/organizer');
       else navigate('/player');
     } catch (err: any) {
-      // Intercept unverified account status without setting auth tokens
-      if (err.response?.status === 403 && (err.response?.data?.requiresVerification || err.response?.data?.email)) {
-        const targetEmail = err.response.data.email || (emailOrUsername.includes('@') ? emailOrUsername : '');
-        navigate(`/verify-otp?email=${encodeURIComponent(targetEmail)}&reason=unverified_login`, {
+      const resData = err.response?.data;
+      const isUnverified =
+        resData?.isVerified === false ||
+        resData?.requiresVerification === true ||
+        (err.response?.status === 403 && resData?.email && !resData?.error?.toLowerCase().includes('banned'));
+
+      if (isUnverified) {
+        const targetEmail = resData?.email || (emailOrUsername.includes('@') ? emailOrUsername : '');
+        const unverifiedToast = 'Account not verified. A verification OTP has been sent to your email.';
+        setToastMessage(unverifiedToast);
+
+        navigate('/verify-otp', {
           state: {
             email: targetEmail,
-            message: err.response.data.message || 'Verification code required to finish sign-in.'
+            toastMessage: unverifiedToast,
+            reason: 'unverified_login'
           }
         });
         return;
@@ -83,6 +95,13 @@ export const LoginPage: React.FC = () => {
           <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs flex items-center space-x-2">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>Password successfully reset! Please log in with your new credentials.</span>
+          </div>
+        )}
+
+        {toastMessage && (
+          <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs flex items-center space-x-2 animate-fade-in shadow-glow-cyan">
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-cyan-400" />
+            <span>{toastMessage}</span>
           </div>
         )}
 
